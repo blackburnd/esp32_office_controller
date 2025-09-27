@@ -1,0 +1,114 @@
+_mode: Initial flash chip status 0x2
+D (76) qio_mode: QIO mode already enabled in flash
+D (81) qio_mode: Enabling QIO mode...
+D (85) boot.esp32s3: magic e9
+D (88) boot.esp32s3: segments 04
+D (91) boot.esp32s3: spi_mode 02
+D (94) boot.esp32s3: spi_speed 0f
+D (98) boot.esp32s3: spi_size 03
+I (101) boot.esp32s3: Boot SPI Speed : 80MHz
+I (106) boot.esp32s3: SPI Mode       : QIO
+I (111) boot.esp32s3: SPI Flash Size : 8MB
+I (116) boot: Enabling RNG early entropy source...
+D (121) bootloader_flash: rodata starts from paddr=0x00008000, size=0xc00, will be mapped to vaddr=0x3c000000
+D (131) boot: mapped partition table 0x8000 at 0x3c008000
+D (136) flash_parts: partition table verified, 4 entries
+I (142) boot: Partition Table:
+I (146) boot: ## Label            Usage          Type ST Offset   Length
+D (153) boot: load partition table entry 0x3c008000
+D (158) boot: type=1 subtype=2
+I (161) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+D (169) boot: load partition table entry 0x3c008020
+D (173) boot: type=1 subtype=1
+I (177) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+D (184) boot: load partition table entry 0x3c008040
+D (189) boot: type=0 subtype=0
+I (192) boot:  2 factory          factory app      00 00 00010000 00177000
+I (200) boot: End of partition table
+D (204) boot: Trying partition index -1 offs 0x10000 size 0x177000
+D (210) esp_image: reading image header @ 0x10000
+D (215) bootloader_flash: mmu set block paddr=0x00010000 (was 0xffffffff)
+D (222) esp_image: image header: 0xe9 0x06 0x02 0x03 40375a04
+I (228) esp_image: segment 0: paddr=00010020 vaddr=3c090020 size=34608h (214536) map
+D (236) esp_image: free data page_count 0x00000200
+D (241) bootloader_flash: rodata starts from paddr=0x00010020, size=0x34608, will be mapped to vaddr=0x3c000000
+D (283) bootloader_flash: mmu set block paddr=0x00040000 (was 0xffffffff)
+I (284) esp_image: segment 1: paddr=00044630 vaddr=3fcac700 size=03948h ( 14664) load
+D (287) esp_image: free data page_count 0x00000200
+D (292) bootloader_flash: rodata starts from paddr=0x00044630, size=0x3948, will be mapped to vaddr=0x3c000000
+D (305) bootloader_flash: mmu set block paddr=0x00040000 (was 0xffffffff)
+I (309) esp_image: segment 2: paddr=00047f80 vaddr=40374000 size=08098h ( 32920) load
+D (318) esp_image: free data page_count 0x00000200
+D (322) bootloader_flash: rodata starts from paddr=0x00047f80, size=0x8098, will be mapped to vaddr=0x3c000000
+D (339) bootloader_flash: mmu set block paddr=0x00050000 (was 0xffffffff)
+I (339) esp_image: segment 3: paddr=00050020 vaddr=42000020 size=823d8h (533464) map
+D (348) esp_image: free data page_count 0x00000200
+D (353) bootloader_flash: rodata starts from paddr=0x00050020, size=0x823d8, will be mapped to vaddr=0x3c000000
+D (442) bootloader_flash: mmu set block paddr=0x000d0000 (was 0xffffffff)
+I (442) esp_image: segment 4: paddr=000d2400 vaddr=4037c098 size=20604h (132612) load
+D (446) esp_image: free data page_count 0x00000200
+D (451) bootloader_flash: rodata starts from paddr=0x000d2400, size=0x20604, will be mapped to vaddr=0x3c000000
+D (486) bootloader_flash: mmu set block paddr=0x000f0000 (was 0xffffffff)
+I (486) esp_image: segment 5: paddr=000f2a0c vaddr=600fe100 size=0001ch (    28) load
+D (490) esp_image: free data page_count 0x00000200
+D (495) bootloader_flash: rodata starts from paddr=0x000f2a0c, size=0x1c, will be mapped to vaddr=0x3c000000
+D (505) bootloader_flash: mmu set block paddr=0x000f0000 (was 0xffffffff)
+D (512) boot: Calculated hash: c7a441c1d7a9c0a9de7e650c03d7e740107a5784982839f8dfef7d32b9eb023f
+I (535) boot: Loaded app from partition at offset 0x10000
+I (535) boot: Disabling RNG early entropy source...
+D (536) boot: Mapping segment 0 as DROM
+D (539) boot: Mapping segment 3 as IROM
+D (543) boot: calling set_cache_and_start_app
+D (547) boot: configure drom and irom and start
+D (552) boot: start: 0x40375a04
+--- 0x40375a04: call_start_cpu0 at /Users/danielblackburn/esp/v5.4.1/esp-idf/components/esp_system/port/cpu_start.c:387
+I (567) octal_psram: vendor id    : 0x0d (AP)
+I (567) octal_psram: dev id       : 0x02 (generation 3)
+I (568) octal_psram: density      : 0x03 (64 Mbit)
+I (570) octal_psram: good-die     : 0x01 (Pass)
+I (574) octal_psram: Latency      : 0x01 (Fixed)
+I (578) octal_psram: VCC          : 0x01 (3V)
+I (582) octal_psram: SRF          : 0x01 (Fast Refresh)
+I (587) octal_psram: BurstType    : 0x01 (Hybrid Wrap)
+I (592) octal_psram: BurstLen     : 0x01 (32 Byte)
+I (597) octal_psram: Readlatency  : 0x02 (10 cycles@Fixed)
+I (602) octal_psram: DriveStrength: 0x00 (1/1)
+I (607) MSPI Timing: PSRAM timing tuning index: 5
+I (610) esp_psram: Found 8MB PSRAM device
+I (614) esp_psram: Speed: 80MHz
+I (632) mmu_psram: Read only data copied and mapped to SPIRAM
+I (632) cpu_start: Multicore app
+I (1005) esp_psram: SPI SRAM memory test OK
+I (1014) cpu_start: Pro cpu start user code
+I (1014) cpu_start: cpu freq: 240000000 Hz
+I (1014) app_init: Application information:
+I (1015) app_init: Project name:     lvgl_porting
+I (1019) app_init: App version:      1
+I (1023) app_init: Compile time:     Sep 24 2025 12:14:47
+I (1028) app_init: ELF file SHA256:  3c5346294...
+I (1032) app_init: ESP-IDF:          v5.4.1-dirty
+I (1036) efuse_init: Min chip rev:     v0.0
+I (1040) efuse_init: Max chip rev:     v0.99 
+I (1044) efuse_init: Chip rev:         v0.2
+I (1048) heap_init: Initializing. RAM available for dynamic allocation:
+I (1055) heap_init: At 3FCBCF68 len 0002C7A8 (177 KiB): RAM
+I (1060) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (1065) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (1071) heap_init: At 600FE11C len 00001ECC (7 KiB): RTCRAM
+I (1076) esp_psram: Adding pool of 7936K of PSRAM memory to heap allocator
+I (1083) spi_flash: detected chip: gd
+I (1086) spi_flash: flash io: qio
+W (1089) spi_flash: Detected size(16384k) larger than the size in the binary image header(8192k). Using the size in the binary image header.
+W (1101) i2c: This driver is an old driver, please migrate your application code to adapt `driver/i2c_master.h`
+I (1111) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (1118) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (1125) main_task: Started on CPU0
+I (1128) esp_psram: Reserving pool of 32K of internal memory for DMA/internal allocations
+I (1136) main_task: Calling app_main()
+W (1173) GT911: Unable to initialize the I2C address
+I (1175) GT911: TouchPad_ID:0x39,0x31,0x31
+I (1175) GT911: TouchPad_Config_Version:88
+I (1175) EXAMPLE: Touch initialization successful
+[Info]  (0.000, +0)      lv_init: begin         (in lv_obj.c line #106)
+I (1185) LVGL: Starting LVGL task
+[Info]  (0.005, +5)      lv_obj_create: begin   (in lv_obj.c line #215)

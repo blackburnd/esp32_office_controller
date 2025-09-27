@@ -1,0 +1,57 @@
+dependencies:
+  espressif/esp_lcd_touch:
+    dependencies: []
+    source:
+      path: /Volumes/Bucket/Firmware/ESP32-S3-Touch-LCD-7-Demo/ESP32-S3-Touch-LCD-7-Demo/ESP-IDF/08_lvgl_Porting/components/espressif__esp_lcd_touch
+      type: local
+    version: 1.1.2
+  espressif/esp_lcd_touch_gt911:
+    dependencies: []
+    source:
+      path: /Volumes/Bucket/Firmware/ESP32-S3-Touch-LCD-7-Demo/ESP32-S3-Touch-LCD-7-Demo/ESP-IDF/08_lvgl_Porting/components/espressif__esp_lcd_touch_gt911
+      type: local
+    version: 1.1.1~1
+  espressif/esp_lvgl_port:
+    component_hash: e720c95cf0667554a204591bb5fade4655fb2990465557041200fa44b5bc7556
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    - name: lvgl/lvgl
+      registry_url: https://components.espressif.com
+      require: public
+      version: '>=8,<10'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.6.0
+  espressif/network_provisioning:
+    component_hash: ce82fa03156143256b615a81871a776fe9f99d528e810a58ee5d3303498b2ae8
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.1'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.1.0
+  idf:
+    source:
+      type: idf
+    version: 5.4.1
+  lvgl/lvgl:
+    dependencies: []
+    source:
+      path: /Volumes/Bucket/Firmware/ESP32-S3-Touch-LCD-7-Demo/ESP32-S3-Touch-LCD-7-Demo/ESP-IDF/08_lvgl_Porting/components/lvgl__lvgl
+      type: local
+    version: 8.4.0
+direct_dependencies:
+- espressif/esp_lcd_touch
+- espressif/esp_lcd_touch_gt911
+- espressif/esp_lvgl_port
+- espressif/network_provisioning
+- idf
+- lvgl/lvgl
+manifest_hash: d8236df25695cfc2d996a5d645a376ea7ea5f38f571f9212272d3ac067c1e168
+target: esp32s3
+version: 2.0.0
