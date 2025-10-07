@@ -815,7 +815,7 @@ static void indev_button_proc(lv_indev_t * i, lv_indev_data_t * data)
  */
 static void indev_proc_press(_lv_indev_proc_t * proc)
 {
-    LV_LOG_INFO("pressed at x:%d y:%d", proc->types.pointer.act_point.x, proc->types.pointer.act_point.y);
+    /*LV_LOG_INFO("pressed at x:%d y:%d", proc->types.pointer.act_point.x, proc->types.pointer.act_point.y);*/
     indev_obj_act = proc->types.pointer.act_obj;
 
     if(proc->wait_until_release != 0) return;

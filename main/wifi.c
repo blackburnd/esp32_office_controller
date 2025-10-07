@@ -5,16 +5,19 @@
 #include "esp_log.h"
 #include <string.h>
 
-#define WIFI_SSID     "Sanctuary"
+#include "lcd.h"
+
+#define WIFI_SSID "Sanctuary"
 #define WIFI_PASSWORD "tikifire"
 
 static const char *TAG = "wifi";
 
-void wifi_init_sta(void) {
+void wifi_init_sta(void)
+{
     esp_netif_create_default_wifi_sta();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    wifi_config_t wifi_config = { 0 };
+    wifi_config_t wifi_config = {0};
     strncpy((char *)wifi_config.sta.ssid, WIFI_SSID, sizeof(wifi_config.sta.ssid));
     strncpy((char *)wifi_config.sta.password, WIFI_PASSWORD, sizeof(wifi_config.sta.password));
     wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
@@ -25,26 +28,72 @@ void wifi_init_sta(void) {
     ESP_ERROR_CHECK(esp_wifi_connect());
 }
 
-static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
-    // This will be registered by main, and can be expanded as needed
-}
-
-void wifi_register_event_handler(void) {
+void wifi_register_event_handler(void)
+{
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
 }
 
-void wifi_get_status(char *ssid, size_t ssid_len, char *ip, size_t ip_len) {
+void wifi_get_status(char *ssid, size_t ssid_len, char *ip, size_t ip_len)
+{
     wifi_config_t wifi_cfg;
-    if (esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg) == ESP_OK) {
+    if (esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg) == ESP_OK)
+    {
         strncpy(ssid, (const char *)wifi_cfg.sta.ssid, ssid_len);
-    } else {
+    }
+    else
+    {
         strncpy(ssid, "<unknown>", ssid_len);
     }
     esp_netif_ip_info_t ip_info;
     esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    if (netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK) {
+    if (netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK)
+    {
         snprintf(ip, ip_len, "%d.%d.%d.%d", IP2STR(&ip_info.ip));
-    } else {
+    }
+    else
+    {
         strncpy(ip, "0.0.0.0", ip_len);
     }
 }
+void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+{
+    char ssid[33] = {0};
+    char ip[16] = {0};
+    if ((event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED))
+    {
+        wifi_get_status(ssid, sizeof(ssid), ip, sizeof(ip));
+        lcd_update_wifi_status(ssid, ip);
+    }
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    {
+        wifi_get_status(ssid, sizeof(ssid), ip, sizeof(ip));
+        lcd_update_wifi_status(ssid, ip);
+        // Initialize MQTT only after WiFi has IP
+        extern esp_err_t mqtt_init(void);
+        static bool mqtt_started = false;
+        if (!mqtt_started) {
+            mqtt_init();
+            mqtt_started = true;
+        }
+    }
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
+    {
+        lcd_update_wifi_status("<unknown>", "0.0.0.0");
+    }
+}
+
+void wifi_is_connected(bool *connected) {
+    esp_netif_ip_info_t ip_info;
+    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+        *connected = true;
+    } else {
+        *connected = false;
+    }
+}
+
+// Update WiFi status icon, SSID, and IP in the UI
+
+
+// Update Home Assistant status icon and IP
+

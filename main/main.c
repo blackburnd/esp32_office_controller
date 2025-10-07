@@ -1,4 +1,3 @@
-
 #include <string.h>
 #include "esp_wifi.h"
 #include "esp_netif.h"
@@ -23,96 +22,13 @@
 #include "driver/i2c.h"
 #include "mqtt_relay_client.h"
 #include "esp_system.h"
+#include "lcd.h"
+#include "mqtt.h"
+#include "wifi.h"
+#include "camera_client.h" // Add this include
+#include "src/extra/libs/png/lv_png.h"  // Corrected path for lv_png_init
+
 #define TAG "CENTRALCONTROLLER"
-
-#define WIFI_SSID     "Sanctuary"
-#define WIFI_PASSWORD "tikifire"
-
-static void wifi_init_sta(void) {
-    esp_netif_create_default_wifi_sta();
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    wifi_config_t wifi_config = { 0 };
-    strncpy((char *)wifi_config.sta.ssid, WIFI_SSID, sizeof(wifi_config.sta.ssid));
-    strncpy((char *)wifi_config.sta.password, WIFI_PASSWORD, sizeof(wifi_config.sta.password));
-    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_LOGI("wifi_init_sta", "wifi_init_sta finished. SSID:%s", WIFI_SSID);
-    ESP_ERROR_CHECK(esp_wifi_connect());
-}
-
-static lv_obj_t *title_bar = NULL;
-static lv_obj_t *wifi_icon = NULL;
-static lv_obj_t *wifi_ssid_label = NULL;
-static lv_obj_t *wifi_ip_label = NULL;
-static lv_obj_t *ha_status_icon = NULL;
-static lv_obj_t *ha_ip_label = NULL;
-
-// Forward declarations for UI update
-static void update_wifi_status_ui(void);
-static void update_ha_status_ui(bool connected, const char *ip);
-// WiFi event handler to update UI on connect/disconnect/IP
-static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
-        update_wifi_status_ui();
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        update_wifi_status_ui();
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        update_wifi_status_ui();
-    }
-}
-
-// Update WiFi status icon, SSID, and IP in the UI
-static void update_wifi_status_ui(void) {
-    if (!wifi_icon || !wifi_ssid_label || !wifi_ip_label) return;
-
-    // Get SSID
-    const char *ssid = "<unknown>";
-    wifi_config_t wifi_cfg;
-    if (esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg) == ESP_OK) {
-        ssid = (const char *)wifi_cfg.sta.ssid;
-    }
-
-    // Get IP
-    char ip_str[16] = "0.0.0.0";
-    esp_netif_ip_info_t ip_info;
-    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    if (netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK) {
-        snprintf(ip_str, sizeof(ip_str), "%d.%d.%d.%d", IP2STR(&ip_info.ip));
-    }
-
-    // Set SSID and IP labels
-    lv_label_set_text_fmt(wifi_ssid_label, "%s", ssid);
-    lv_label_set_text_fmt(wifi_ip_label, "%s", ip_str);
-
-    // Optionally, update icon color or text for connection state
-    if (strcmp(ip_str, "0.0.0.0") == 0) {
-        lv_label_set_text(wifi_icon, LV_SYMBOL_WIFI);
-        lv_obj_set_style_text_color(wifi_icon, lv_palette_main(LV_PALETTE_GREY), 0);
-    } else {
-        lv_label_set_text(wifi_icon, LV_SYMBOL_WIFI);
-        lv_obj_set_style_text_color(wifi_icon, lv_palette_main(LV_PALETTE_BLUE), 0);
-        mqtt_init();
-
-        update_ha_status_ui(true, "192.168.1.206");
-
-    }
-}
-
-// Update Home Assistant status icon and IP
-static void update_ha_status_ui(bool connected, const char *ip) {
-    if (!ha_status_icon || !ha_ip_label) return;
-    if (connected) {
-        lv_label_set_text(ha_status_icon, LV_SYMBOL_OK " HA Connected");
-        lv_obj_set_style_text_color(ha_status_icon, lv_palette_main(LV_PALETTE_GREEN), 0);
-    } else {
-        lv_label_set_text(ha_status_icon, LV_SYMBOL_CLOSE " HA Unavailable");
-        lv_obj_set_style_text_color(ha_status_icon, lv_palette_main(LV_PALETTE_RED), 0);
-    }
-    lv_label_set_text_fmt(ha_ip_label, "%s", ip ? ip : "-");
-}
 
 
 
@@ -286,6 +202,9 @@ static esp_err_t app_lvgl_init(void)
     };
     ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL port initialization failed");
 
+    // Initialize PNG decoder
+    lv_png_init();
+
     uint32_t buff_size = EXAMPLE_LCD_H_RES * EXAMPLE_LCD_DRAW_BUFF_HEIGHT;
 #if EXAMPLE_LCD_LVGL_FULL_REFRESH || EXAMPLE_LCD_LVGL_DIRECT_MODE
     buff_size = EXAMPLE_LCD_H_RES * EXAMPLE_LCD_V_RES;
@@ -350,33 +269,18 @@ static esp_err_t app_lvgl_init(void)
     return ESP_OK;
 }
 
-
-// Forward declaration for toggle button and label
-static lv_obj_t *toggle_btn = NULL;
-static lv_obj_t *toggle_btn_label = NULL;
-
-#define WATER_VALVE_INDEX 2 // relay_ids[2] is "water_valve"
-
-// Called when MQTT state for water_valve changes
-static void water_valve_state_cb(int relay_index, bool state) {
-    if (relay_index != WATER_VALVE_INDEX) return;
-    if (!toggle_btn || !toggle_btn_label) return;
-    if (state) {
-        lv_obj_add_state(toggle_btn, LV_STATE_CHECKED);
-        lv_label_set_text(toggle_btn_label, "Turn Water Off");
-    } else {
-        lv_obj_clear_state(toggle_btn, LV_STATE_CHECKED);
-        lv_label_set_text(toggle_btn_label, "Turn Water On");
+static void relay_state_change_handler(int relay_index, bool state) {
+    switch (relay_index) {
+        case WATER_VALVE_INDEX:
+            water_valve_state_cb(relay_index, state);
+            break;
+        case CENTRAL_VACUUM_INDEX:
+            central_vacuum_state_cb(relay_index, state);
+            break;
+        case VACUUM_PUMP_INDEX:
+            vacuum_pump_state_cb(relay_index, state);
+            break;
     }
-}
-
-static void toggle_event_cb(lv_event_t *e) {
-    bool is_checked = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
-    if (toggle_btn_label) {
-        lv_label_set_text(toggle_btn_label, is_checked ? "Turn Water Off" : "Turn Water On");
-    }
-    // Publish to MQTT
-    mqtt_publish_relay_state(WATER_VALVE_INDEX + 1, is_checked); // relay_index is 1-based
 }
 
 void app_main(void)
@@ -391,15 +295,14 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-
     // Initialize and connect WiFi
     wifi_init_sta();
 
     // Initialize MQTT client before any publish
-
     ESP_ERROR_CHECK(app_lcd_init());
 
     /* Touch initialization (optional - continue if it fails) */
+    // MQTT will be started from WiFi event handler after IP is acquired.
     esp_err_t touch_ret = app_touch_init();
     if (touch_ret != ESP_OK) {
         touch_handle = NULL;
@@ -407,73 +310,18 @@ void app_main(void)
 
     ESP_ERROR_CHECK(app_lvgl_init());
     lvgl_port_lock(0);
-    // Create title bar
-    lv_obj_t *scr = lv_disp_get_scr_act(NULL);
-    title_bar = lv_obj_create(scr);
-    lv_obj_set_size(title_bar, EXAMPLE_LCD_H_RES, 50);
-    lv_obj_align(title_bar, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_set_style_bg_color(title_bar, lv_palette_lighten(LV_PALETTE_BLUE_GREY, 2), 0);
-    lv_obj_set_style_radius(title_bar, 0, 0);
-    lv_obj_set_style_border_width(title_bar, 3, 0);
-    lv_obj_set_style_border_color(title_bar, lv_color_black(), 0);
-
-    // WiFi status in title bar (right side, horizontal alignment)
-    wifi_icon = lv_label_create(title_bar);
-    lv_label_set_text(wifi_icon, LV_SYMBOL_WIFI);
-    lv_obj_align(wifi_icon, LV_ALIGN_RIGHT_MID, -250, 0);
-
-    wifi_ssid_label = lv_label_create(title_bar);
-    lv_label_set_text(wifi_ssid_label, "Connecting...");
-    lv_obj_align_to(wifi_ssid_label, wifi_icon, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
-
-    wifi_ip_label = lv_label_create(title_bar);
-    lv_label_set_text(wifi_ip_label, "0.0.0.0");
-    lv_obj_align_to(wifi_ip_label, wifi_ssid_label, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
-
-    // Home Assistant status indicator (in title bar)
-    ha_status_icon = lv_label_create(title_bar);
-    lv_label_set_text(ha_status_icon, LV_SYMBOL_CLOSE " HA Connecting...");
-    lv_obj_set_style_text_color(ha_status_icon, lv_palette_main(LV_PALETTE_RED), 0);
-    lv_obj_align(ha_status_icon, LV_ALIGN_LEFT_MID, 10, 0);
-
-    ha_ip_label = lv_label_create(title_bar);
-    lv_label_set_text(ha_ip_label, "-");
-    lv_obj_align_to(ha_ip_label, ha_status_icon, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
-
-    // Remove highlighting/clickable state from title bar and all labels (must be after creation)
-    if (title_bar) lv_obj_clear_flag(title_bar, LV_OBJ_FLAG_CLICKABLE);
-    if (wifi_icon) lv_obj_clear_flag(wifi_icon, LV_OBJ_FLAG_CLICKABLE);
-    if (wifi_ssid_label) lv_obj_clear_flag(wifi_ssid_label, LV_OBJ_FLAG_CLICKABLE);
-    if (wifi_ip_label) lv_obj_clear_flag(wifi_ip_label, LV_OBJ_FLAG_CLICKABLE);
-    if (ha_status_icon) lv_obj_clear_flag(ha_status_icon, LV_OBJ_FLAG_CLICKABLE);
-    if (ha_ip_label) lv_obj_clear_flag(ha_ip_label, LV_OBJ_FLAG_CLICKABLE);
-
-    // Toggle button for water pump (move down)
-    toggle_btn = lv_btn_create(scr);
-    lv_obj_add_flag(toggle_btn, LV_OBJ_FLAG_CHECKABLE);
-    lv_obj_set_size(toggle_btn, 160, 60);
-    lv_obj_align(toggle_btn, LV_ALIGN_TOP_LEFT, 20, 120);
-    lv_obj_set_style_border_width(toggle_btn, 0, 0);
-    lv_obj_set_style_outline_width(toggle_btn, 0, 0);
-    lv_obj_set_style_shadow_width(toggle_btn, 0, 0);
-    lv_obj_set_style_radius(toggle_btn, 0, 0);
-    lv_obj_set_style_bg_color(toggle_btn, lv_palette_main(LV_PALETTE_BLUE), 0);
-    lv_obj_set_style_bg_opa(toggle_btn, LV_OPA_COVER, 0);
-    toggle_btn_label = lv_label_create(toggle_btn);
-    lv_label_set_text(toggle_btn_label, "Turn Water On");
-    lv_obj_center(toggle_btn_label);
-    lv_obj_add_event_cb(toggle_btn, toggle_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-
-    // Register callback for water_valve state
-    set_relay_state_change_callback(water_valve_state_cb);
-
-    // Initial Home Assistant status (disconnected, no IP)
-    update_ha_status_ui(false, "-");
-
-    // Initial update (after all objects are created)
-    update_wifi_status_ui();
+    lcd_create_ui();
     lvgl_port_unlock();
+    
+    
+    // Register relay callback after UI is created
+    set_relay_state_change_callback(relay_state_change_handler);
+
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
+    // Now that UI is created, update WiFi status
+    lcd_update_wifi_status(NULL, NULL);
+
+    camera_client_start();  // Still call to initialize, but no periodic fetch
 }
 
 // Example: Call this from MQTT event handler to update HA status

@@ -1,22 +1,42 @@
 dependencies:
+  espressif/cmake_utilities:
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.5.3
+  espressif/esp_jpeg:
+    component_hash: defb83669293cbf86d0fa86b475ba5517aceed04ed70db435388c151ab37b5d7
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.3.1
   espressif/esp_lcd_touch:
     dependencies: []
     source:
-      path: /Volumes/Bucket/Firmware/ESP32-S3-Touch-LCD-7-Demo/ESP32-S3-Touch-LCD-7-Demo/ESP-IDF/08_lvgl_Porting/components/espressif__esp_lcd_touch
+      path: /Users/danielblackburn/Documents/HomeAssistantControllers/esp32_office_controller/components/espressif__esp_lcd_touch
       type: local
     version: 1.1.2
   espressif/esp_lcd_touch_gt911:
     dependencies: []
     source:
-      path: /Volumes/Bucket/Firmware/ESP32-S3-Touch-LCD-7-Demo/ESP32-S3-Touch-LCD-7-Demo/ESP-IDF/08_lvgl_Porting/components/espressif__esp_lcd_touch_gt911
+      path: /Users/danielblackburn/Documents/HomeAssistantControllers/esp32_office_controller/components/espressif__esp_lcd_touch_gt911
       type: local
     version: 1.1.1~1
   espressif/esp_lvgl_port:
-    component_hash: e720c95cf0667554a204591bb5fade4655fb2990465557041200fa44b5bc7556
+    component_hash: bfb2778c063b05a6c47c1a8de6d166ee4d911bc86fe0b3ff9e6bab06d2812033
     dependencies:
     - name: idf
       require: private
-      version: '>=4.4'
+      version: '>=5.1'
     - name: lvgl/lvgl
       registry_url: https://components.espressif.com
       require: public
@@ -24,17 +44,21 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 2.6.0
-  espressif/network_provisioning:
-    component_hash: ce82fa03156143256b615a81871a776fe9f99d528e810a58ee5d3303498b2ae8
+    version: 2.6.2
+  espressif/esp_mmap_assets:
+    component_hash: 9b6eea296488103300f31a9e0fe9096f830b99341332a0dfccd7e3ce43814302
     dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
     - name: idf
       require: private
-      version: '>=5.1'
+      version: '>=5.0'
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.1.0
+    version: 1.3.1~2
   idf:
     source:
       type: idf
@@ -42,16 +66,17 @@ dependencies:
   lvgl/lvgl:
     dependencies: []
     source:
-      path: /Volumes/Bucket/Firmware/ESP32-S3-Touch-LCD-7-Demo/ESP32-S3-Touch-LCD-7-Demo/ESP-IDF/08_lvgl_Porting/components/lvgl__lvgl
+      path: /Users/danielblackburn/Documents/HomeAssistantControllers/esp32_office_controller/components/lvgl__lvgl
       type: local
     version: 8.4.0
 direct_dependencies:
+- espressif/esp_jpeg
 - espressif/esp_lcd_touch
 - espressif/esp_lcd_touch_gt911
 - espressif/esp_lvgl_port
-- espressif/network_provisioning
+- espressif/esp_mmap_assets
 - idf
 - lvgl/lvgl
-manifest_hash: d8236df25695cfc2d996a5d645a376ea7ea5f38f571f9212272d3ac067c1e168
+manifest_hash: aa58405684ad4e2d289ea709513478a5b420aaa6c1e4775518d7937b830b98c1
 target: esp32s3
 version: 2.0.0

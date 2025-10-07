@@ -114,4 +114,14 @@ menu "Example Configuration"
             help
                 Height of LVGL buffer. The width of the buffer is the same as that of the LCD.
     endmenu
+
+    menu "Office Controller Configuration"
+
+        config CAMERA_SNAPSHOT_URL
+            string "Camera Snapshot URL"
+            default "http://192.168.1.115/cgi-bin/api.cgi?cmd=Snap&channel=1&user=danielb&password=plastic12&width=320&height=240"
+            help
+                The full URL to fetch the camera snapshot JPEG.
+
+    endmenu
 endmenu
