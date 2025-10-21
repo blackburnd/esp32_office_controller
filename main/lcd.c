@@ -5,12 +5,13 @@
 #include "esp_lcd_panel_rgb.h"
 #include <string.h>
 #include "mqtt.h"
-#include "weather.h" // Add this
-#include "assets.h"  // << add this so embedded PNG symbols (clear_day_png_start...) are defined
-#include <esp_log.h> // needed for ESP_LOGI/ESP_LOGE usage
+#include "weather.h"
+#include "assets.h"
+#include <esp_log.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include <time.h> // added for versaries calculation
+#include <time.h>
+#include "extra/libs/png/lv_png.h"  // For PNG decoder initialization
 
 void water_valve_state_cb(int relay_index, bool state);
 void central_vacuum_state_cb(int relay_index, bool state);
@@ -185,6 +186,9 @@ static void camera_south_yard_btn_event_cb(lv_event_t *e)
 
 void lcd_create_ui(void)
 {
+    // Initialize PNG decoder for weather icons
+    lv_png_init();
+
     lv_obj_t *scr = lv_disp_get_scr_act(NULL);
 
     lv_obj_remove_style_all(scr);
@@ -269,7 +273,8 @@ void lcd_create_ui(void)
 
     // Left side: Current forecast info (icon, temp, humidity, wind, conditions, button)
     weather_icon_label = lv_img_create(weather_tab);
-    lv_obj_set_size(weather_icon_label, 64, 64);  // Set size to match your PNGs
+    // Don't set size - let PNG decoder determine it
+    // lv_obj_set_size(weather_icon_label, 64, 64);
     lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 10, 10);  // Top of left side
 
     weather_temp_label = lv_label_create(weather_tab);
@@ -289,7 +294,9 @@ void lcd_create_ui(void)
     lv_obj_align(weather_conditions_label, LV_ALIGN_TOP_LEFT, 10, 170);
 
     // Set initial weather icon (now that weather_conditions_label exists)
-    set_png_or_error(weather_icon_label, clear_day_png_start, clear_day_png_end, weather_conditions_label);
+    ESP_LOGI("UI", "About to set PNG icon...");
+    bool png_result = set_png_or_error(weather_icon_label, clear_day_png_start, clear_day_png_end, weather_conditions_label);
+    ESP_LOGI("UI", "PNG set result: %s", png_result ? "SUCCESS" : "FAILED");
 
     // Fetch Weather button: create on the left column, but place it at extreme bottom-left
     lv_obj_t *fetch_weather_btn = lv_btn_create(weather_tab);
@@ -851,7 +858,8 @@ static void weather_fetch_task_func(void *pvParameters)
 void lcd_start_weather_fetch(void)
 {
     // Create a task to fetch weather data from HA
-    xTaskCreate(weather_fetch_task_func, "weather_fetch", 8192, NULL, 5, NULL);
+    // Need large stack due to 32KB weather buffer + HTTP client overhead
+    xTaskCreate(weather_fetch_task_func, "weather_fetch", 40960, NULL, 5, NULL);
 }
 
 // --- Fetch Weather button event handler ---

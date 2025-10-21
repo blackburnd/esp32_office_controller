@@ -116,25 +116,21 @@ void weather_fetch_and_display(void) {
         return;
     }
 
-    esp_err_t err = esp_http_client_open(client, 0);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to open HTTP client: %s", esp_err_to_name(err));
-        esp_http_client_cleanup(client);
-        return;
-    }
+    // Use perform instead of open/read for simpler operation
+    esp_err_t err = esp_http_client_perform(client);
 
-    esp_http_client_fetch_headers(client);
     int status_code = esp_http_client_get_status_code(client);
     int content_length = esp_http_client_get_content_length(client);
     ESP_LOGI(TAG, "HTTP status: %d, err: %s, content_length: %d", status_code, esp_err_to_name(err), content_length);
 
-    if (status_code == 200) {
+    if (err == ESP_OK && status_code == 200) {
+        // Read response data
         int total_read = 0;
-        while (1) {
-            int len = esp_http_client_read(client, buffer + total_read, sizeof(buffer) - total_read - 1);  // Leave space for null
+        while (total_read < sizeof(buffer) - 1) {
+            int len = esp_http_client_read(client, buffer + total_read, sizeof(buffer) - total_read - 1);
             if (len <= 0) break;
             total_read += len;
-            if (total_read >= sizeof(buffer) - 1) break;  // Prevent overflow
+            ESP_LOGI(TAG, "Read chunk: %d bytes, total: %d", len, total_read);
         }
         buffer[total_read] = '\0';  // Null-terminate
 
@@ -318,13 +314,31 @@ bool set_png_or_error(lv_obj_t *img_obj, const uint8_t *start, const uint8_t *en
         return false;
     }
 
-    // Ensure LVGL PNG decoder initialised (no-op if already done)
-    //lv_png_init();
+    // Create a static image descriptor for the PNG
+    // This needs to persist, so we'll allocate it statically
+    static lv_img_dsc_t img_dsc_array[10];  // Support up to 10 different images
+    static int img_index = 0;
 
-    // Set image source to embedded pointer (LVGL will decode)
-    lv_img_set_src(img_obj, start);
+    if (img_index >= 10) {
+        ESP_LOGE(TAG, "Too many PNG images loaded");
+        if (err_label) lv_label_set_text(err_label, "PNG: too many");
+        return false;
+    }
+
+    lv_img_dsc_t *img_dsc = &img_dsc_array[img_index++];
+    img_dsc->header.always_zero = 0;
+    img_dsc->header.w = 0;
+    img_dsc->header.h = 0;
+    img_dsc->header.cf = LV_IMG_CF_RAW;  // Raw format for PNG decoder
+    img_dsc->data_size = size;
+    img_dsc->data = start;
+
+    // Set the image source using the descriptor
+    lv_img_set_src(img_obj, img_dsc);
+
+    // Force refresh
     lv_obj_invalidate(img_obj);
 
-    ESP_LOGI(TAG, "PNG set OK, size=%zu", size);
+    ESP_LOGI(TAG, "PNG set OK, size=%zu, using descriptor at index %d", size, img_index - 1);
     return true;
 }
