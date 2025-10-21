@@ -15,9 +15,8 @@
 void water_valve_state_cb(int relay_index, bool state);
 void central_vacuum_state_cb(int relay_index, bool state);
 void vacuum_pump_state_cb(int relay_index, bool state);
-// TODO: Implement versaries (anniversaries) functionality
-// static void versaries_setup_timer_and_update(void);
-// static void update_versaries_display(void);
+static void versaries_setup_timer_and_update(void);
+static void update_versaries_display(void);
 
 static void water_switch_event_cb(lv_event_t *e);
 static void central_vacuum_switch_event_cb(lv_event_t *e);
@@ -57,10 +56,10 @@ static lv_obj_t *controller_tab = NULL;
 // renamed events_tab -> versaries_tab
 static lv_obj_t *versaries_tab = NULL;
 
-// Versaries UI elements (TODO: implement versaries functionality)
-// static lv_obj_t *versaries_date_label = NULL;
-// static lv_obj_t *versaries_count_label = NULL;
-// static lv_timer_t *versaries_update_timer = NULL;
+// Versaries UI elements
+static lv_obj_t *versaries_date_label = NULL;
+static lv_obj_t *versaries_count_label = NULL;
+static lv_timer_t *versaries_update_timer = NULL;
 
 // New birthday labels: Mia (5/8/1995) and Mine (8/22/1980)
 static lv_obj_t *mia_date_label = NULL;
@@ -74,6 +73,16 @@ static lv_obj_t *my_until_label = NULL;
 #define MARRIAGE_DATE_YEAR  2023
 #define MARRIAGE_DATE_MONTH 11
 #define MARRIAGE_DATE_DAY   3
+
+// Mia's birthday (May 8, 1995)
+#define MIA_BIRTH_YEAR  1995
+#define MIA_BIRTH_MONTH 5
+#define MIA_BIRTH_DAY   8
+
+// Daniel's birthday (August 22, 1980)
+#define MY_BIRTH_YEAR   1980
+#define MY_BIRTH_MONTH  8
+#define MY_BIRTH_DAY    22
 
 // Objects referenced from other compilation units: define non-static to match 'extern' in headers
 lv_obj_t *camera_img_widget = NULL;            // declared extern in lcd.h
@@ -614,58 +623,50 @@ lv_style_set_text_color(&camera_btn_style_focused, COLOR_WHITE);
 
     // --- Versaries Tab (replaces Events tab) ---
     // Show marriage date and elapsed time since marriage
-    // TODO: Implement versaries display
-    // versaries_date_label = lv_label_create(versaries_tab);
-    // lv_label_set_text(versaries_date_label, "Married: --");
-    // lv_obj_set_style_text_color(versaries_date_label, COLOR_DARK_GREY, 0);
-    // lv_obj_align(versaries_date_label, LV_ALIGN_TOP_MID, 0, 40);
+    versaries_date_label = lv_label_create(versaries_tab);
+    lv_label_set_text(versaries_date_label, "Married: Nov 3, 2023");
+    lv_obj_set_style_text_color(versaries_date_label, COLOR_DARK_GREY, 0);
+    lv_obj_align(versaries_date_label, LV_ALIGN_TOP_MID, 0, 40);
 
-    // versaries_count_label = lv_label_create(versaries_tab);
-    // lv_label_set_text(versaries_count_label, "-- years, -- months, -- days");
-    // lv_obj_set_style_text_color(versaries_count_label, COLOR_DARK_GREY, 0);
-    // lv_obj_align(versaries_count_label, LV_ALIGN_TOP_MID, 0, 80);
+    versaries_count_label = lv_label_create(versaries_tab);
+    lv_label_set_text(versaries_count_label, "-- years, -- months, -- days");
+    lv_obj_set_style_text_color(versaries_count_label, COLOR_DARK_GREY, 0);
+    lv_obj_align(versaries_count_label, LV_ALIGN_TOP_MID, 0, 80);
 
     // Mia's Birthday row (center date, left = days since, right = days until)
     mia_since_label = lv_label_create(versaries_tab);
     lv_label_set_text(mia_since_label, "0 days since");
     lv_obj_set_style_text_color(mia_since_label, COLOR_DARK_GREY, 0);
     lv_obj_align(mia_since_label, LV_ALIGN_TOP_MID, -160, 130);
-    (void)mia_since_label;  // Suppress unused warning
 
     mia_date_label = lv_label_create(versaries_tab);
-    lv_label_set_text(mia_date_label, "Mia: 05-258"); // remove year
+    lv_label_set_text(mia_date_label, "Mia: 05-08");
     lv_obj_set_style_text_color(mia_date_label, COLOR_DARK_GREY, 0);
     lv_obj_align(mia_date_label, LV_ALIGN_TOP_MID, 0, 130);
-    (void)mia_date_label;  // Suppress unused warning
 
     mia_until_label = lv_label_create(versaries_tab);
     lv_label_set_text(mia_until_label, "0 days until");
     lv_obj_set_style_text_color(mia_until_label, COLOR_DARK_GREY, 0);
     lv_obj_align(mia_until_label, LV_ALIGN_TOP_MID, 160, 130);
-    (void)mia_until_label;  // Suppress unused warning
 
     // My Birthday row
     my_since_label = lv_label_create(versaries_tab);
     lv_label_set_text(my_since_label, "0 days since");
     lv_obj_set_style_text_color(my_since_label, COLOR_DARK_GREY, 0);
     lv_obj_align(my_since_label, LV_ALIGN_TOP_MID, -160, 170);
-    (void)my_since_label;  // Suppress unused warning
 
     my_date_label = lv_label_create(versaries_tab);
-    lv_label_set_text(my_date_label, "Daniel: 08-22"); // show name + month/day only
+    lv_label_set_text(my_date_label, "Daniel: 08-22");
     lv_obj_set_style_text_color(my_date_label, COLOR_DARK_GREY, 0);
     lv_obj_align(my_date_label, LV_ALIGN_TOP_MID, 0, 170);
-    (void)my_date_label;  // Suppress unused warning
 
     my_until_label = lv_label_create(versaries_tab);
     lv_label_set_text(my_until_label, "0 days until");
     lv_obj_set_style_text_color(my_until_label, COLOR_DARK_GREY, 0);
     lv_obj_align(my_until_label, LV_ALIGN_TOP_MID, 160, 170);
-    (void)my_until_label;  // Suppress unused warning
 
-    // TODO: Create a timer to refresh the versaries display every minute
-    // versaries_setup_timer_and_update();
-    // update_versaries_display();
+    // Setup timer to refresh the versaries display every minute
+    versaries_setup_timer_and_update();
 
     // call helper immediately to populate labels (helper defined below)
     // ...existing code...
@@ -875,8 +876,133 @@ static void tab_change_event_cb(lv_event_t *e)
 }
 
 // --- Versaries timer and display logic ---
-// TODO: Implement versaries display update
-// static void update_versaries_display(void)
-// {
-//     // Calculate and display anniversaries/important dates
-// }
+
+// Helper function to calculate days between two dates
+static int days_between_dates(struct tm *date1, struct tm *date2)
+{
+    time_t time1 = mktime(date1);
+    time_t time2 = mktime(date2);
+    return (int)difftime(time2, time1) / (60 * 60 * 24);
+}
+
+// Calculate next occurrence of a birthday
+static void get_next_birthday(int birth_month, int birth_day, struct tm *now, struct tm *next_bday)
+{
+    *next_bday = *now;
+    next_bday->tm_mon = birth_month - 1;  // tm_mon is 0-11
+    next_bday->tm_mday = birth_day;
+    next_bday->tm_hour = 0;
+    next_bday->tm_min = 0;
+    next_bday->tm_sec = 0;
+
+    mktime(next_bday);  // Normalize
+
+    // If birthday already passed this year, move to next year
+    if (mktime(next_bday) < mktime(now)) {
+        next_bday->tm_year++;
+        mktime(next_bday);  // Normalize again
+    }
+}
+
+// Calculate last occurrence of a birthday
+static void get_last_birthday(int birth_month, int birth_day, struct tm *now, struct tm *last_bday)
+{
+    *last_bday = *now;
+    last_bday->tm_mon = birth_month - 1;
+    last_bday->tm_mday = birth_day;
+    last_bday->tm_hour = 0;
+    last_bday->tm_min = 0;
+    last_bday->tm_sec = 0;
+
+    mktime(last_bday);
+
+    // If birthday hasn't occurred yet this year, use last year
+    if (mktime(last_bday) > mktime(now)) {
+        last_bday->tm_year--;
+        mktime(last_bday);
+    }
+}
+
+static void update_versaries_display(void)
+{
+    time_t now_time;
+    struct tm now_tm;
+    time(&now_time);
+    localtime_r(&now_time, &now_tm);
+
+    char buf[128];
+
+    // --- Marriage Anniversary ---
+    struct tm marriage_date = {0};
+    marriage_date.tm_year = MARRIAGE_DATE_YEAR - 1900;
+    marriage_date.tm_mon = MARRIAGE_DATE_MONTH - 1;
+    marriage_date.tm_mday = MARRIAGE_DATE_DAY;
+    mktime(&marriage_date);
+
+    int days_married = days_between_dates(&marriage_date, &now_tm);
+    int years = days_married / 365;
+    int months = (days_married % 365) / 30;
+    int days = (days_married % 365) % 30;
+
+    if (versaries_count_label) {
+        lvgl_port_lock(0);
+        snprintf(buf, sizeof(buf), "%d years, %d months, %d days", years, months, days);
+        lv_label_set_text(versaries_count_label, buf);
+        lvgl_port_unlock();
+    }
+
+    // --- Mia's Birthday ---
+    struct tm mia_next, mia_last;
+    get_next_birthday(MIA_BIRTH_MONTH, MIA_BIRTH_DAY, &now_tm, &mia_next);
+    get_last_birthday(MIA_BIRTH_MONTH, MIA_BIRTH_DAY, &now_tm, &mia_last);
+
+    int days_until_mia = days_between_dates(&now_tm, &mia_next);
+    int days_since_mia = days_between_dates(&mia_last, &now_tm);
+
+    lvgl_port_lock(0);
+    if (mia_since_label) {
+        snprintf(buf, sizeof(buf), "%d days since", days_since_mia);
+        lv_label_set_text(mia_since_label, buf);
+    }
+    if (mia_until_label) {
+        snprintf(buf, sizeof(buf), "%d days until", days_until_mia);
+        lv_label_set_text(mia_until_label, buf);
+    }
+    lvgl_port_unlock();
+
+    // --- Daniel's Birthday ---
+    struct tm my_next, my_last;
+    get_next_birthday(MY_BIRTH_MONTH, MY_BIRTH_DAY, &now_tm, &my_next);
+    get_last_birthday(MY_BIRTH_MONTH, MY_BIRTH_DAY, &now_tm, &my_last);
+
+    int days_until_mine = days_between_dates(&now_tm, &my_next);
+    int days_since_mine = days_between_dates(&my_last, &now_tm);
+
+    lvgl_port_lock(0);
+    if (my_since_label) {
+        snprintf(buf, sizeof(buf), "%d days since", days_since_mine);
+        lv_label_set_text(my_since_label, buf);
+    }
+    if (my_until_label) {
+        snprintf(buf, sizeof(buf), "%d days until", days_until_mine);
+        lv_label_set_text(my_until_label, buf);
+    }
+    lvgl_port_unlock();
+}
+
+// Timer callback for periodic versaries updates
+static void versaries_timer_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    update_versaries_display();
+}
+
+// Setup timer and do initial update
+static void versaries_setup_timer_and_update(void)
+{
+    // Update immediately
+    update_versaries_display();
+
+    // Create timer to update every minute (60000 ms)
+    versaries_update_timer = lv_timer_create(versaries_timer_cb, 60000, NULL);
+}

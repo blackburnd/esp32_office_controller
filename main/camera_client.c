@@ -9,16 +9,34 @@
 #include "lvgl.h"
 #include "esp_lvgl_port.h"
 #include "wifi.h"
-#include <jpeg_decoder.h>  // Keep for old API
+#include <jpeg_decoder.h>
+#include <stdlib.h>  // For malloc/free
 
 static const char *TAG = "CAMERA_CLIENT";
+
+// Forward declaration for resize_rgb565
+esp_err_t resize_rgb565(const uint16_t *src, int src_w, int src_h, uint16_t *dst, int dst_w, int dst_h);
+
+// Updated URLs for 640x480 resolution
+static const char *camera_urls[8] = {
+    "http://192.168.1.115/cgi-bin/api.cgi?cmd=Snap&channel=0&user=danielb&password=plastic12&width=640&height=480",  // Camera 1 (North Driveway)
+    "http://192.168.1.115/cgi-bin/api.cgi?cmd=Snap&channel=1&user=danielb&password=plastic12&width=640&height=480",  // Camera 2 (Front Door)
+    "http://192.168.1.115/cgi-bin/api.cgi?cmd=Snap&channel=2&user=danielb&password=plastic12&width=640&height=480",  // Camera 3 (South Driveway)
+    "http://192.168.1.115/cgi-bin/api.cgi?cmd=Snap&channel=3&user=danielb&password=plastic12&width=640&height=480",  // Camera 4
+    "http://192.168.1.115/cgi-bin/api.cgi?cmd=Snap&channel=4&user=danielb&password=plastic12&width=640&height=480",  // Camera 5
+    "http://192.168.1.115/cgi-bin/api.cgi?cmd=Snap&channel=5&user=danielb&password=plastic12&width=640&height=480",  // Camera 6
+    "http://192.168.1.115/cgi-bin/api.cgi?cmd=Snap&channel=6&user=danielb&password=plastic12&width=640&height=480",  // Camera 7
+    "http://192.168.1.115/cgi-bin/api.cgi?cmd=Snap&channel=7&user=danielb&password=plastic12&width=640&height=480"   // Camera 8
+};
 
 static uint8_t *image_buffer = NULL;
 #define IMAGE_BUFFER_SIZE (100 * 1024)
 
+// Updated buffer size for 640x480 RGB565 (640 * 480 * 2 = 614,400 bytes)
+#define DECODED_IMAGE_SIZE (640 * 480 * 2)  // 614,400 bytes
+
 // Dynamically allocated buffer for decoded RGB565 image (320x240) in PSRAM
 static uint16_t *decoded_image = NULL;
-#define DECODED_IMAGE_SIZE (320 * 240 * 2)  // 153,600 bytes
 
 // Placeholder: Removed JPEG data, will fill buffer directly
 
@@ -77,18 +95,25 @@ esp_err_t http_event_handler(esp_http_client_event_t *evt) {
                 esp_err_t ret = esp_jpeg_decode(&jpeg_cfg, &outimg);
                 if (ret == ESP_OK) {
                     ESP_LOGI(TAG, "JPEG decoded successfully: %ux%u", outimg.width, outimg.height);
-                    // Configure lv_img_dsc_t for the decoded image
-                    camera_img_dsc.header.always_zero = 0;
-                    camera_img_dsc.header.w = outimg.width;
-                    camera_img_dsc.header.h = outimg.height;
-                    camera_img_dsc.data_size = outimg.width * outimg.height * 2;
-                    camera_img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;  // RGB565
-                    camera_img_dsc.data = (const uint8_t *)decoded_image;
                     
-                    lvgl_port_lock(0);
-                    lv_img_set_src(camera_img_widget, &camera_img_dsc);
-                    lv_obj_invalidate(camera_img_widget);
-                    lvgl_port_unlock();
+                    // Resize from decoded 640x480 to 405x304 directly into decoded_image (since 405*304 < 640*480)
+                    esp_err_t resize_ret = resize_rgb565(decoded_image, outimg.width, outimg.height, decoded_image, 405, 304);
+                    if (resize_ret == ESP_OK) {
+                        // Update descriptor for resized image
+                        camera_img_dsc.header.always_zero = 0;
+                        camera_img_dsc.header.w = 405;
+                        camera_img_dsc.header.h = 304;
+                        camera_img_dsc.data_size = 405 * 304 * 2;
+                        camera_img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+                        camera_img_dsc.data = (const uint8_t *)decoded_image;
+                        
+                        lvgl_port_lock(0);
+                        lv_img_set_src(camera_img_widget, &camera_img_dsc);
+                        lv_obj_invalidate(camera_img_widget);
+                        lvgl_port_unlock();
+                    } else {
+                        ESP_LOGE(TAG, "Resize failed: %s", esp_err_to_name(resize_ret));
+                    }
                 } else {
                     ESP_LOGE(TAG, "JPEG decode failed: %s", esp_err_to_name(ret));
                 }
@@ -109,7 +134,7 @@ static bool is_streaming = false;
 
 // Timer callback to fetch a frame
 static void stream_timer_callback(TimerHandle_t xTimer) {
-    camera_client_fetch_image();
+    camera_client_fetch_image(2);  // Stream for Camera 2 (Front Door)
 }
 
 void camera_client_start_stream(void) {
@@ -160,15 +185,15 @@ void camera_client_start(void) {
     
     // Create a 320x240 red placeholder by filling the buffer
     uint16_t red_color = 0xF800;  // RGB565 red
-    for (int i = 0; i < 320 * 240; i++) {
+    for (int i = 0; i < 405 * 304; i++) {
         decoded_image[i] = red_color;
     }
     
     // Configure lv_img_dsc_t for the placeholder
     camera_img_dsc.header.always_zero = 0;
-    camera_img_dsc.header.w = 320;
-    camera_img_dsc.header.h = 240;
-    camera_img_dsc.data_size = 320 * 240 * 2;
+    camera_img_dsc.header.w = 405;  // Updated for resized size
+    camera_img_dsc.header.h = 304;  // Updated for resized size
+    camera_img_dsc.data_size = 405 * 304 * 2;
     camera_img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;  // RGB565
     camera_img_dsc.data = (const uint8_t *)decoded_image;
     
@@ -178,9 +203,28 @@ void camera_client_start(void) {
     lvgl_port_unlock();
 }
 
-void camera_client_fetch_image(void) {
+esp_err_t resize_rgb565(const uint16_t *src, int src_w, int src_h, uint16_t *dst, int dst_w, int dst_h) {
+    if (!src || !dst || src_w <= 0 || src_h <= 0 || dst_w <= 0 || dst_h <= 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    for (int y = 0; y < dst_h; y++) {
+        for (int x = 0; x < dst_w; x++) {
+            int src_x = (x * src_w) / dst_w;
+            int src_y = (y * src_h) / dst_h;
+            dst[y * dst_w + x] = src[src_y * src_w + src_x];
+        }
+    }
+    return ESP_OK;
+}
+
+void camera_client_fetch_image(int camera_index) {
+    if (camera_index < 1 || camera_index > 8) {
+        ESP_LOGE(TAG, "Invalid camera index: %d", camera_index);
+        return;
+    }
+    const char *url = camera_urls[camera_index - 1];  // 0-based array index
     esp_http_client_config_t config = {
-        .url = CONFIG_CAMERA_SNAPSHOT_URL,
+        .url = url,
         .event_handler = http_event_handler,
         .timeout_ms = 10000,
     };

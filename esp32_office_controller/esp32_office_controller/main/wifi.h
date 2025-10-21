@@ -1,0 +1,2 @@
+#define OPENWEATHER_DAILY_URL "https://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s&units=imperial"
+#define OPENWEATHER_WEEKLY_URL "https://api.openweathermap.org/data/2.5/onecall?lat=%s&lon=%s&exclude=current,minutely,hourly&appid=%s&units=imperial"

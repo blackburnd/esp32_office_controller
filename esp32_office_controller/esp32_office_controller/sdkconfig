@@ -1,0 +1,59 @@
+void weather_fetch_weekly_forecast(void) {
+    char *buffer = (char *)malloc(2048);
+    if (!buffer) {
+        ESP_LOGE(TAG, "Failed to allocate buffer");
+        return;
+    }
+
+    // Show loading
+    lvgl_port_lock(0);
+    lv_label_set_text(weather_icon_label, LV_SYMBOL_REFRESH);
+    lv_label_set_text(weather_temp_label, "Loading...");
+    lv_label_set_text(weather_humidity_label, "Loading...");
+    lvgl_port_unlock();
+
+    char url[256];
+    snprintf(url, sizeof(url), "https://api.openweathermap.org/data/2.5/onecall?lat=%s&lon=%s&appid=%s&units=imperial", WEATHER_LAT, WEATHER_LON, OPENWEATHERKEY);
+    ESP_LOGI(TAG, "URL: %s", url);
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_GET,
+        .cert_pem = NULL,
+        .use_global_ca_store = true,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .timeout_ms = 10000,
+        .buffer_size = 2048,
+        .buffer_size_tx = 2048,
+    };
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) {
+        ESP_LOGE(TAG, "Failed to init HTTP client");
+        free(buffer);
+        return;
+    }
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open HTTP client: %s", esp_err_to_name(err));
+        esp_http_client_cleanup(client);
+        free(buffer);
+        return;
+    }
+
+    esp_http_client_fetch_headers(client);
+    int status_code = esp_http_client_get_status_code(client);
+    if (status_code == 200) {
+        int total_len = esp_http_client_read(client, buffer, 2048);
+        // Parse the JSON response for daily and weekly forecasts
+        // Use cJSON or similar to parse the buffer and extract the required data
+        // Update the UI with the forecast data
+    } else {
+        ESP_LOGE(TAG, "Request failed: status %d", status_code);
+    }
+
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+    free(buffer);
+}
