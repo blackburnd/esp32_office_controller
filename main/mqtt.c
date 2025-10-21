@@ -1,6 +1,6 @@
 #include "mqtt.h"
 #include "lcd.h"
-#include "mqtt.h"
+#include "esp_timer.h"  // Add this for timer
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -9,6 +9,8 @@
 
 // Forward declaration for the text area MQTT handler
 static void mqtt_textarea_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
+
+extern void lcd_update_weather_forecast(const char *forecast_text);
 
 static const char *TAG = "mqtt";
 static esp_mqtt_client_handle_t mqtt_client = NULL;
@@ -166,6 +168,19 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         esp_mqtt_client_subscribe(mqtt_client, "vacuum_pump/cmd", 1);
         mqtt_publish_discovery_config();
 
+        // Add: Fetch weather forecast via HTTP
+        lcd_start_weather_fetch();  // Call the function from lcd.c
+
+        // Create a periodic timer to fetch weather every hour
+        static esp_timer_handle_t weather_timer;
+        esp_timer_create_args_t timer_args = {
+            .callback = (esp_timer_cb_t)lcd_start_weather_fetch,  // Use the function from lcd.c
+            .arg = NULL,
+            .name = "weather_fetch"
+        };
+        esp_timer_create(&timer_args, &weather_timer);
+        // esp_timer_start_periodic(weather_timer, 3600000000);  // Disabled for now
+
         ESP_LOGI(TAG, "MQTT connected");
         lcd_update_ha_status(true, "192.168.1.206");
         break;
@@ -176,6 +191,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
     case MQTT_EVENT_DATA:
         handle_command_message(event->topic, event->data, event->data_len);
+        // Remove the weather parsing from MQTT_EVENT_DATA, as it's now handled via HTTP
         break;
     default:
         break;
@@ -202,11 +218,23 @@ static void relay_state_change_handler(int relay_index, bool state)
 esp_err_t mqtt_init(void)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = "mqtt://192.168.1.206",
-        .broker.address.port = 1883,
-        .credentials.username = "mqtt",
-        .credentials.authentication.password = "mqtt",
-        .credentials.client_id = "esp32_office_controller"};
+        .broker = {
+            .address = {
+                .uri = "mqtt://192.168.1.206",
+                .port = 1883,
+            },
+        },
+        .credentials = {
+            .username = "mqtt",
+            .authentication = {
+                .password = "mqtt",
+            },
+            .client_id = "esp32_office_controller",
+        },
+        .task = {
+            .stack_size = 16384,  // Increased from 8192
+        },
+    };
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
     if (!mqtt_client)
         return ESP_FAIL;
