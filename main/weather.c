@@ -10,7 +10,7 @@
 #include "esp_crt_bundle.h"  // declares esp_crt_bundle_attach
 #include <string.h>          // memcmp, strlen, etc.
 #include <time.h>
-#include "extra/libs/png/lv_png.h"
+#include <jpeg_decoder.h>    // For esp_jpeg_decode
 static const char *TAG = "weather";
 
 
@@ -31,38 +31,38 @@ static const char* get_weather_icon(const char *condition) {
 }
 
 // Function to map condition to PNG
-static const uint8_t* get_weather_icon_png(const char *condition) {
-    if (!condition) return clear_day_png_start;  // Default
-    if (strstr(condition, "clear") || strstr(condition, "sunny")) return clear_day_png_start;
-    if (strstr(condition, "partly cloudy") || strstr(condition, "few clouds")) return cloudy_1_day_png_start;
-    if (strstr(condition, "cloudy") || strstr(condition, "overcast")) return cloudy_png_start;
-    if (strstr(condition, "rain") || strstr(condition, "drizzle")) return rainy_1_png_start;
-    if (strstr(condition, "heavy rain")) return rainy_3_png_start;
-    if (strstr(condition, "snow")) return snowy_1_png_start;
-    if (strstr(condition, "heavy snow")) return snowy_3_png_start;
-    if (strstr(condition, "thunder") || strstr(condition, "storm")) return thunderstorms_png_start;
-    if (strstr(condition, "fog") || strstr(condition, "mist")) return fog_png_start;
-    if (strstr(condition, "haze")) return haze_png_start;
-    if (strstr(condition, "wind")) return wind_png_start;
-    // Add more mappings based on your PNGs (e.g., hail, tornado)
-    return clear_day_png_start;  // Fallback
+static const uint8_t* get_weather_icon_jpg(const char *condition) {
+    if (!condition) return clear_day_jpg_start;  // Default
+    if (strstr(condition, "clear") || strstr(condition, "sunny")) return clear_day_jpg_start;
+    if (strstr(condition, "partly cloudy") || strstr(condition, "few clouds")) return cloudy_1_day_jpg_start;
+    if (strstr(condition, "cloudy") || strstr(condition, "overcast")) return cloudy_jpg_start;
+    if (strstr(condition, "rain") || strstr(condition, "drizzle")) return rainy_1_jpg_start;
+    if (strstr(condition, "heavy rain")) return rainy_3_jpg_start;
+    if (strstr(condition, "snow")) return snowy_1_jpg_start;
+    if (strstr(condition, "heavy snow")) return snowy_3_jpg_start;
+    if (strstr(condition, "thunder") || strstr(condition, "storm")) return thunderstorms_jpg_start;
+    if (strstr(condition, "fog") || strstr(condition, "mist")) return fog_jpg_start;
+    if (strstr(condition, "haze")) return haze_jpg_start;
+    if (strstr(condition, "wind")) return wind_jpg_start;
+    // Add more mappings based on your JPGs (e.g., hail, tornado)
+    return clear_day_jpg_start;  // Fallback
 }
 
 // Add parallel mapping for the "end" symbols
-static const uint8_t* get_weather_icon_png_end(const char *condition) {
-    if (!condition) return clear_day_png_end;
-    if (strstr(condition, "clear") || strstr(condition, "sunny")) return clear_day_png_end;
-    if (strstr(condition, "partly cloudy") || strstr(condition, "few clouds")) return cloudy_1_day_png_end;
-    if (strstr(condition, "cloudy") || strstr(condition, "overcast")) return cloudy_png_end;
-    if (strstr(condition, "rain") || strstr(condition, "drizzle")) return rainy_1_png_end;
-    if (strstr(condition, "heavy rain")) return rainy_3_png_end;
-    if (strstr(condition, "snow")) return snowy_1_png_end;
-    if (strstr(condition, "heavy snow")) return snowy_3_png_end;
-    if (strstr(condition, "thunder") || strstr(condition, "storm")) return thunderstorms_png_end;
-    if (strstr(condition, "fog") || strstr(condition, "mist")) return fog_png_end;
-    if (strstr(condition, "haze")) return haze_png_end;
-    if (strstr(condition, "wind")) return wind_png_end;
-    return clear_day_png_end;
+static const uint8_t* get_weather_icon_jpg_end(const char *condition) {
+    if (!condition) return clear_day_jpg_end;
+    if (strstr(condition, "clear") || strstr(condition, "sunny")) return clear_day_jpg_end;
+    if (strstr(condition, "partly cloudy") || strstr(condition, "few clouds")) return cloudy_1_day_jpg_end;
+    if (strstr(condition, "cloudy") || strstr(condition, "overcast")) return cloudy_jpg_end;
+    if (strstr(condition, "rain") || strstr(condition, "drizzle")) return rainy_1_jpg_end;
+    if (strstr(condition, "heavy rain")) return rainy_3_jpg_end;
+    if (strstr(condition, "snow")) return snowy_1_jpg_end;
+    if (strstr(condition, "heavy snow")) return snowy_3_jpg_end;
+    if (strstr(condition, "thunder") || strstr(condition, "storm")) return thunderstorms_jpg_end;
+    if (strstr(condition, "fog") || strstr(condition, "mist")) return fog_jpg_end;
+    if (strstr(condition, "haze")) return haze_jpg_end;
+    if (strstr(condition, "wind")) return wind_jpg_end;
+    return clear_day_jpg_end;
 }
 
 // Function to get wind direction from degrees
@@ -116,21 +116,25 @@ void weather_fetch_and_display(void) {
         return;
     }
 
-    // Use perform instead of open/read for simpler operation
-    esp_err_t err = esp_http_client_perform(client);
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open HTTP client: %s", esp_err_to_name(err));
+        esp_http_client_cleanup(client);
+        return;
+    }
 
+    esp_http_client_fetch_headers(client);
     int status_code = esp_http_client_get_status_code(client);
     int content_length = esp_http_client_get_content_length(client);
     ESP_LOGI(TAG, "HTTP status: %d, err: %s, content_length: %d", status_code, esp_err_to_name(err), content_length);
 
-    if (err == ESP_OK && status_code == 200) {
-        // Read response data
+    if (status_code == 200) {
         int total_read = 0;
-        while (total_read < sizeof(buffer) - 1) {
-            int len = esp_http_client_read(client, buffer + total_read, sizeof(buffer) - total_read - 1);
+        while (1) {
+            int len = esp_http_client_read(client, buffer + total_read, sizeof(buffer) - total_read - 1);  // Leave space for null
             if (len <= 0) break;
             total_read += len;
-            ESP_LOGI(TAG, "Read chunk: %d bytes, total: %d", len, total_read);
+            if (total_read >= sizeof(buffer) - 1) break;  // Prevent overflow
         }
         buffer[total_read] = '\0';  // Null-terminate
 
@@ -191,8 +195,8 @@ void weather_fetch_and_display(void) {
                     // Display today's summary (enhanced)
                     if (day_count > 0) {
                         // Existing: icon, temp
-                        const uint8_t *icon_png = get_weather_icon_png(daily[0].condition);
-                        const uint8_t *icon_png_end = get_weather_icon_png_end(daily[0].condition);
+                        const uint8_t *icon_jpg = get_weather_icon_jpg(daily[0].condition);
+                        const uint8_t *icon_jpg_end = get_weather_icon_jpg_end(daily[0].condition);
                         char temp_str[32];
                         char hum_str[32] = "N/A";  // Still placeholder
                         char wind_str[64];
@@ -229,7 +233,7 @@ void weather_fetch_and_display(void) {
                         snprintf(temp_str, sizeof(temp_str), "%.1f°F / %.1f°F", daily[0].max_temp, daily[0].min_temp);
 
                         lvgl_port_lock(0);
-                        set_png_or_error(weather_icon_label, icon_png, icon_png_end, weather_conditions_label);
+                        set_jpg_or_error(weather_icon_label, icon_jpg, icon_jpg_end, weather_conditions_label);
                         lv_label_set_text(weather_temp_label, temp_str);
                         lv_label_set_text(weather_humidity_label, hum_str);
                         lv_label_set_text(weather_wind_label, wind_str);
@@ -291,54 +295,101 @@ void weather_fetch_and_display(void) {
     esp_http_client_cleanup(client);
 }
 
-bool set_png_or_error(lv_obj_t *img_obj, const uint8_t *start, const uint8_t *end, lv_obj_t *err_label)
+// Task function to fetch weather periodically
+void weather_fetch_task_func(void *pvParameters)
 {
+    while (1) {
+        ESP_LOGI(TAG, "Fetching weather data from task...");
+        weather_fetch_and_display();
+        // Wait for 30 minutes before the next fetch
+        vTaskDelay(pdMS_TO_TICKS(30 * 60 * 1000));
+    }
+}
+
+bool set_jpg_or_error(lv_obj_t *img_obj, const uint8_t *start, const uint8_t *end, lv_obj_t *err_label)
+{
+    ESP_LOGI(TAG, "=== set_jpg_or_error called ===");
+
     if (!img_obj) {
-        ESP_LOGE(TAG, "img_obj is NULL");
+        ESP_LOGE(TAG, "ERROR: img_obj is NULL");
         return false;
     }
+    ESP_LOGI(TAG, "img_obj is valid: %p", (void*)img_obj);
 
     if (!start || !end || end <= start) {
-        ESP_LOGE(TAG, "Asset missing or zero-length (%p .. %p)", (void*)start, (void*)end);
-        if (err_label) lv_label_set_text(err_label, "PNG: missing");
+        ESP_LOGE(TAG, "ERROR: Asset missing or zero-length (%p .. %p)", (void*)start, (void*)end);
+        if (err_label) lv_label_set_text(err_label, "JPG: missing");
         return false;
     }
 
     size_t size = (size_t)(end - start);
     ESP_LOGI(TAG, "Asset pointers: start=%p end=%p size=%zu", (void*)start, (void*)end, size);
+    ESP_LOGI(TAG, "First 4 bytes: %02X %02X %02X %02X", start[0], start[1], start[2], start[3]);
 
-    const unsigned char png_sig[8] = {0x89, 'P','N','G',0x0D,0x0A,0x1A,0x0A};
-    if (size < sizeof(png_sig) || memcmp(start, png_sig, sizeof(png_sig)) != 0) {
-        ESP_LOGE(TAG, "Asset not a valid PNG (bad signature / too small) size=%zu", size);
-        if (err_label) lv_label_set_text(err_label, "PNG: invalid");
+    // JPG signature check (JPEG files start with 0xFFD8)
+    if (size < 2 || start[0] != 0xFF || start[1] != 0xD8) {
+        ESP_LOGE(TAG, "ERROR: Asset not a valid JPG (bad signature / too small) size=%zu", size);
+        ESP_LOGE(TAG, "Expected: FF D8, Got: %02X %02X", start[0], start[1]);
+        if (err_label) lv_label_set_text(err_label, "JPG: invalid");
+        return false;
+    }
+    ESP_LOGI(TAG, "JPG signature valid");
+
+    // Use a SINGLE static buffer for all weather icons (only show one at a time)
+    // This saves memory - we reuse the same 2MB buffer instead of allocating 10x (20MB)
+    static uint8_t *decoded_buffer = NULL;
+    static lv_img_dsc_t img_dsc;
+
+    // Allocate buffer for decoded image once (max 1024x1024 RGB565 = 2097152 bytes = 2MB)
+    const size_t decoded_size = 1024 * 1024 * 2;  // RGB565 = 2 bytes per pixel
+    if (decoded_buffer == NULL) {
+        decoded_buffer = (uint8_t *)heap_caps_malloc(decoded_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!decoded_buffer) {
+            ESP_LOGE(TAG, "ERROR: Failed to allocate %zu bytes for decoded JPG", decoded_size);
+            if (err_label) lv_label_set_text(err_label, "JPG: no mem");
+            return false;
+        }
+        ESP_LOGI(TAG, "Allocated %zu bytes in PSRAM for weather icon buffer", decoded_size);
+    }
+
+    // Decode JPEG to RGB565
+    esp_jpeg_image_cfg_t jpeg_cfg = {
+        .indata = start,
+        .indata_size = size,
+        .outbuf = decoded_buffer,
+        .outbuf_size = decoded_size,
+        .out_format = JPEG_IMAGE_FORMAT_RGB565,
+        .out_scale = JPEG_IMAGE_SCALE_0,
+        .flags = {
+            .swap_color_bytes = 0,
+        }
+    };
+    esp_jpeg_image_output_t outimg;
+    ESP_LOGI(TAG, "Starting JPEG decode...");
+    esp_err_t ret = esp_jpeg_decode(&jpeg_cfg, &outimg);
+
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "ERROR: JPEG decode failed: %s", esp_err_to_name(ret));
+        if (err_label) lv_label_set_text(err_label, "JPG: decode fail");
         return false;
     }
 
-    // Create a static image descriptor for the PNG
-    // This needs to persist, so we'll allocate it statically
-    static lv_img_dsc_t img_dsc_array[10];  // Support up to 10 different images
-    static int img_index = 0;
+    ESP_LOGI(TAG, "JPEG decoded successfully: %ux%u", outimg.width, outimg.height);
 
-    if (img_index >= 10) {
-        ESP_LOGE(TAG, "Too many PNG images loaded");
-        if (err_label) lv_label_set_text(err_label, "PNG: too many");
-        return false;
-    }
-
-    lv_img_dsc_t *img_dsc = &img_dsc_array[img_index++];
-    img_dsc->header.always_zero = 0;
-    img_dsc->header.w = 0;
-    img_dsc->header.h = 0;
-    img_dsc->header.cf = LV_IMG_CF_RAW;  // Raw format for PNG decoder
-    img_dsc->data_size = size;
-    img_dsc->data = start;
+    // Set up image descriptor (reuse same descriptor each time)
+    img_dsc.header.always_zero = 0;
+    img_dsc.header.w = outimg.width;
+    img_dsc.header.h = outimg.height;
+    img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;  // RGB565
+    img_dsc.data_size = outimg.width * outimg.height * 2;
+    img_dsc.data = decoded_buffer;
 
     // Set the image source using the descriptor
-    lv_img_set_src(img_obj, img_dsc);
+    lv_img_set_src(img_obj, &img_dsc);
 
     // Force refresh
     lv_obj_invalidate(img_obj);
 
-    ESP_LOGI(TAG, "PNG set OK, size=%zu, using descriptor at index %d", size, img_index - 1);
+    ESP_LOGI(TAG, "=== JPG set OK: size=%zu bytes, decoded to %ux%u ===", size, outimg.width, outimg.height);
     return true;
 }

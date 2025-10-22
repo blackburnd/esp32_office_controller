@@ -7,70 +7,69 @@ set(SOURCES
     lcd.c
     camera_client.c
     weather.c
-    ../components/lvgl__lvgl/src/extra/libs/png/lv_png.c
 )
 
-# Embed PNG assets from static/png/
+# Embed JPG assets from static/jpg/
 set(ASSETS
-    ../static/png/clear-day.png
-    ../static/png/clear-night.png
-    ../static/png/cloudy.png
-    ../static/png/cloudy-1-day.png
-    ../static/png/cloudy-1-night.png
-    ../static/png/cloudy-2-day.png
-    ../static/png/cloudy-2-night.png
-    ../static/png/cloudy-3-day.png
-    ../static/png/cloudy-3-night.png
-    ../static/png/dust.png
-    ../static/png/fog.png
-    ../static/png/fog-day.png
-    ../static/png/fog-night.png
-    ../static/png/frost.png
-    ../static/png/frost-day.png
-    ../static/png/frost-night.png
-    ../static/png/hail.png
-    ../static/png/haze.png
-    ../static/png/haze-day.png
-    ../static/png/haze-night.png
-    ../static/png/hurricane.png
-    ../static/png/isolated-thunderstorms.png
-    ../static/png/isolated-thunderstorms-day.png
-    ../static/png/isolated-thunderstorms-night.png
-    ../static/png/rain-and-sleet-mix.png
-    ../static/png/rain-and-snow-mix.png
-    ../static/png/rainy-1.png
-    ../static/png/rainy-1-day.png
-    ../static/png/rainy-1-night.png
-    ../static/png/rainy-2.png
-    ../static/png/rainy-2-day.png
-    ../static/png/rainy-2-night.png
-    ../static/png/rainy-3.png
-    ../static/png/rainy-3-day.png
-    ../static/png/rainy-3-night.png
-    ../static/png/scattered-thunderstorms.png
-    ../static/png/scattered-thunderstorms-day.png
-    ../static/png/scattered-thunderstorms-night.png
-    ../static/png/severe-thunderstorm.png
-    ../static/png/snow-and-sleet-mix.png
-    ../static/png/snowy-1.png
-    ../static/png/snowy-1-day.png
-    ../static/png/snowy-1-night.png
-    ../static/png/snowy-2.png
-    ../static/png/snowy-2-day.png
-    ../static/png/snowy-2-night.png
-    ../static/png/snowy-3.png
-    ../static/png/snowy-3-day.png
-    ../static/png/snowy-3-night.png
-    ../static/png/thunderstorms.png
-    ../static/png/tornado.png
-    ../static/png/tropical-storm.png
-    ../static/png/wind.png
+    ../static/jpg/clear-day.jpg
+    ../static/jpg/clear-night.jpg
+    ../static/jpg/cloudy.jpg
+    ../static/jpg/cloudy-1-day.jpg
+    ../static/jpg/cloudy-1-night.jpg
+    ../static/jpg/cloudy-2-day.jpg
+    ../static/jpg/cloudy-2-night.jpg
+    ../static/jpg/cloudy-3-day.jpg
+    ../static/jpg/cloudy-3-night.jpg
+    ../static/jpg/dust.jpg
+    ../static/jpg/fog.jpg
+    ../static/jpg/fog-day.jpg
+    ../static/jpg/fog-night.jpg
+    ../static/jpg/frost.jpg
+    ../static/jpg/frost-day.jpg
+    ../static/jpg/frost-night.jpg
+    ../static/jpg/hail.jpg
+    ../static/jpg/haze.jpg
+    ../static/jpg/haze-day.jpg
+    ../static/jpg/haze-night.jpg
+    ../static/jpg/hurricane.jpg
+    ../static/jpg/isolated-thunderstorms.jpg
+    ../static/jpg/isolated-thunderstorms-day.jpg
+    ../static/jpg/isolated-thunderstorms-night.jpg
+    ../static/jpg/rain-and-sleet-mix.jpg
+    ../static/jpg/rain-and-snow-mix.jpg
+    ../static/jpg/rainy-1.jpg
+    ../static/jpg/rainy-1-day.jpg
+    ../static/jpg/rainy-1-night.jpg
+    ../static/jpg/rainy-2.jpg
+    ../static/jpg/rainy-2-day.jpg
+    ../static/jpg/rainy-2-night.jpg
+    ../static/jpg/rainy-3.jpg
+    ../static/jpg/rainy-3-day.jpg
+    ../static/jpg/rainy-3-night.jpg
+    ../static/jpg/scattered-thunderstorms.jpg
+    ../static/jpg/scattered-thunderstorms-day.jpg
+    ../static/jpg/scattered-thunderstorms-night.jpg
+    ../static/jpg/severe-thunderstorm.jpg
+    ../static/jpg/snow-and-sleet-mix.jpg
+    ../static/jpg/snowy-1.jpg
+    ../static/jpg/snowy-1-day.jpg
+    ../static/jpg/snowy-1-night.jpg
+    ../static/jpg/snowy-2.jpg
+    ../static/jpg/snowy-2-day.jpg
+    ../static/jpg/snowy-2-night.jpg
+    ../static/jpg/snowy-3.jpg
+    ../static/jpg/snowy-3-day.jpg
+    ../static/jpg/snowy-3-night.jpg
+    ../static/jpg/thunderstorms.jpg
+    ../static/jpg/tornado.jpg
+    ../static/jpg/tropical-storm.jpg
+    ../static/jpg/wind.jpg
 )
 
 idf_component_register(
     SRCS ${SOURCES}
-    INCLUDE_DIRS "." "../components/lvgl__lvgl/src/extra/libs/png"  # <- add png header dir
-    EMBED_FILES ${ASSETS}  # Embeds the PNGs
+    INCLUDE_DIRS "."
+    EMBED_FILES ${ASSETS}  # Embeds the JPGs
     REQUIRES lvgl esp_lvgl_port esp_http_client esp_wifi mqtt esp_event esp_netif esp-tls nvs_flash esp_jpeg json
 )
 

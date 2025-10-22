@@ -37,3 +37,21 @@ CONFIG_LV_DEMO_MUSIC_AUTO_PLAY=y
 
 CONFIG_ESP_TLS_USING_WOLFSSL=n
 CONFIG_ESP_TLS_USING_MBEDTLS=y
+
+# --- Memory tweaks: prefer PSRAM and shrink TLS buffers ---
+# Allow malloc() to use external PSRAM (already true in current sdkconfig, keep here as default)
+CONFIG_SPIRAM_USE_MALLOC=y
+# Keep a small internal allocation threshold; larger blocks go to PSRAM
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
+# Reserve some internal memory for DMA/internal needs
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768
+# Try to place WiFi/LWIP buffers into PSRAM to free internal RAM
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+
+# Reduce TLS buffer sizes and enable dynamic buffers to lower peak usage
+CONFIG_MBEDTLS_ASYMMETRIC_CONTENT_LEN=y
+CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=4096
+CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=4096
+CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
+# Optional: don't keep peer certificate after handshake to save RAM
+CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE=n

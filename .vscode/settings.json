@@ -12,5 +12,9 @@
     "--compile-commands-dir=/Users/danielblackburn/Documents/HomeAssistantControllers/esp32_office_controller/build"
   ],
   "idf.port": "/dev/tty.usbmodem3201",
-  "idf.flashType": "UART"
+  "idf.flashType": "UART",
+  "files.associations": {
+    "weather.h": "c",
+    "esp_lcd_panel_io.h": "c"
+  }
 }

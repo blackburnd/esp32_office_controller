@@ -17,11 +17,11 @@ esp_err_t mqtt_publish_water_valve_state(bool state);
 esp_err_t mqtt_publish_vacuum_pump_state(bool state);
 void mqtt_publish_weather_request(void);
 
-// Shared defines for HA and weather
-#define HA_BASE_URL "http://192.168.1.206:8123"
-#define HA_ACCESS_TOKEN "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIyZjI0M2Y3YzZjNDY0Y2ExOTk4YWIzYTM2NDdmMTNkYyIsImlhdCI6MTc1OTk0MzM0MiwiZXhwIjoyMDc1MzAzMzQyfQ.CywPwRlHLE9Oilufp_iRjSByLAjn6huRtx0Omk7vGyE"
+// Shared defines for HA and weather - use Kconfig values
+#define HA_BASE_URL CONFIG_HA_BASE_URL
+#define HA_ACCESS_TOKEN CONFIG_HA_ACCESS_TOKEN
 #define WEATHER_ENTITY_ID "weather.forecast_home"
-#define OPENWEATHERKEY "f629bfa41962d9cfb3842b40d2ca7a5c"
+#define OPENWEATHERKEY CONFIG_OPENWEATHER_API_KEY
 #define WEATHER_CITY "Boynton Beach"
 
 #ifdef __cplusplus

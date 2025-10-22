@@ -11,7 +11,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <time.h>
-#include "extra/libs/png/lv_png.h"  // For PNG decoder initialization
 
 void water_valve_state_cb(int relay_index, bool state);
 void central_vacuum_state_cb(int relay_index, bool state);
@@ -186,9 +185,6 @@ static void camera_south_yard_btn_event_cb(lv_event_t *e)
 
 void lcd_create_ui(void)
 {
-    // Initialize PNG decoder for weather icons
-    lv_png_init();
-
     lv_obj_t *scr = lv_disp_get_scr_act(NULL);
 
     lv_obj_remove_style_all(scr);
@@ -273,30 +269,27 @@ void lcd_create_ui(void)
 
     // Left side: Current forecast info (icon, temp, humidity, wind, conditions, button)
     weather_icon_label = lv_img_create(weather_tab);
-    // Don't set size - let PNG decoder determine it
-    // lv_obj_set_size(weather_icon_label, 64, 64);
+    lv_obj_set_size(weather_icon_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);  // Auto-size to image content
     lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 10, 10);  // Top of left side
 
     weather_temp_label = lv_label_create(weather_tab);
-    lv_label_set_text(weather_temp_label, "Temp: --°F");
-    lv_obj_align(weather_temp_label, LV_ALIGN_TOP_LEFT, 10, 80);
+    lv_label_set_text(weather_temp_label, "Loading...");
+    lv_obj_align(weather_temp_label, LV_ALIGN_TOP_LEFT, 10, 1040);
 
     weather_humidity_label = lv_label_create(weather_tab);
-    lv_label_set_text(weather_humidity_label, "Humidity: --%");
-    lv_obj_align(weather_humidity_label, LV_ALIGN_TOP_LEFT, 10, 110);
+    lv_label_set_text(weather_humidity_label, "");
+    lv_obj_align(weather_humidity_label, LV_ALIGN_TOP_LEFT, 10, 1070);
 
     weather_wind_label = lv_label_create(weather_tab);
-    lv_label_set_text(weather_wind_label, "Wind: -- mph --");
-    lv_obj_align(weather_wind_label, LV_ALIGN_TOP_LEFT, 10, 140);
+    lv_label_set_text(weather_wind_label, "");
+    lv_obj_align(weather_wind_label, LV_ALIGN_TOP_LEFT, 10, 1100);
 
     weather_conditions_label = lv_label_create(weather_tab);
-    lv_label_set_text(weather_conditions_label, "Conditions: --");
-    lv_obj_align(weather_conditions_label, LV_ALIGN_TOP_LEFT, 10, 170);
+    lv_label_set_text(weather_conditions_label, "");
+    lv_obj_align(weather_conditions_label, LV_ALIGN_TOP_LEFT, 10, 1130);
 
     // Set initial weather icon (now that weather_conditions_label exists)
-    ESP_LOGI("UI", "About to set PNG icon...");
-    bool png_result = set_png_or_error(weather_icon_label, clear_day_png_start, clear_day_png_end, weather_conditions_label);
-    ESP_LOGI("UI", "PNG set result: %s", png_result ? "SUCCESS" : "FAILED");
+    set_jpg_or_error(weather_icon_label, clear_day_jpg_start, clear_day_jpg_end, weather_conditions_label);
 
     // Fetch Weather button: create on the left column, but place it at extreme bottom-left
     lv_obj_t *fetch_weather_btn = lv_btn_create(weather_tab);
@@ -315,6 +308,22 @@ void lcd_create_ui(void)
     lv_coord_t forecast_h = (350 * 85) / 100;                    // 15% shorter than original 350
     lv_obj_set_size(weather_forecast_list, forecast_w, forecast_h);
     lv_obj_align(weather_forecast_list, LV_ALIGN_TOP_RIGHT, -10, 10);
+
+    // Set unified background color and remove borders for weather tab elements
+    lv_obj_set_style_bg_color(weather_tab, COLOR_WHITE, 0);
+    lv_obj_set_style_bg_opa(weather_tab, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(weather_tab, 0, 0);
+
+    lv_obj_set_style_bg_color(weather_forecast_list, COLOR_WHITE, 0);
+    lv_obj_set_style_bg_opa(weather_forecast_list, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(weather_forecast_list, 0, 0);
+
+    // Remove borders from weather icon and labels
+    lv_obj_set_style_border_width(weather_icon_label, 0, 0);
+    lv_obj_set_style_border_width(weather_temp_label, 0, 0);
+    lv_obj_set_style_border_width(weather_humidity_label, 0, 0);
+    lv_obj_set_style_border_width(weather_wind_label, 0, 0);
+    lv_obj_set_style_border_width(weather_conditions_label, 0, 0);
 
     // Keep the PNG where it is, move the lower info labels down toward the bottom-left
     lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 10, 10); // unchanged
@@ -677,8 +686,11 @@ lv_style_set_text_color(&camera_btn_style_focused, COLOR_WHITE);
 
     // call helper immediately to populate labels (helper defined below)
     // ...existing code...
- 
+
     lv_obj_update_layout(cameras_tab);
+
+    // Trigger initial weather fetch since the weather tab is shown first
+    lcd_start_weather_fetch();
 }
 
 // --- Switch event handlers ---
@@ -801,6 +813,13 @@ static void auto_refresh_timer_cb(lv_timer_t *timer)
 void lcd_init(void)
 {
     // LCD and LVGL init handled in main.c
+    // Initialize PNG decoder once and keep LVGL image cache small to save RAM
+    // Limit image cache entries (decoded bitmaps) to reduce memory usage
+    static bool s_img_cache_set = false;
+    if (!s_img_cache_set) {
+        lv_img_cache_set_size(1);
+        s_img_cache_set = true;
+    }
 }
 
 static relay_state_change_callback_t relay_cb = NULL;
@@ -848,18 +867,13 @@ static void auto_refresh_switch_event_cb(lv_event_t *e)
     }
 }
 
-// Task function wrapper for weather fetch
-static void weather_fetch_task_func(void *pvParameters)
-{
-    weather_fetch_and_display();
-    vTaskDelete(NULL);  // Delete the task when done
-}
+
 
 void lcd_start_weather_fetch(void)
 {
     // Create a task to fetch weather data from HA
     // Need large stack due to 32KB weather buffer + HTTP client overhead
-    xTaskCreate(weather_fetch_task_func, "weather_fetch", 40960, NULL, 5, NULL);
+    xTaskCreate(weather_fetch_task_func, "weather_fetch", 12288, NULL, 5, NULL);
 }
 
 // --- Fetch Weather button event handler ---

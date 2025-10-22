@@ -123,5 +123,25 @@ menu "Example Configuration"
             help
                 The full URL to fetch the camera snapshot JPEG.
 
+        config HA_BASE_URL
+            string "Home Assistant Base URL"
+            default "http://192.168.1.206:8123"
+            help
+                The base URL for your Home Assistant instance.
+
+        config HA_ACCESS_TOKEN
+            string "Home Assistant Access Token"
+            default ""
+            help
+                Long-lived access token for Home Assistant API authentication.
+                Generate this in Home Assistant under Profile > Security > Long-Lived Access Tokens.
+
+        config OPENWEATHER_API_KEY
+            string "OpenWeatherMap API Key"
+            default ""
+            help
+                API key for OpenWeatherMap service.
+                Get your free API key from https://openweathermap.org/api
+
     endmenu
 endmenu

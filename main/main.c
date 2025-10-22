@@ -10,7 +10,6 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "lv_png.h"
 #include "lvgl.h"
 #include "esp_lvgl_port.h"
 #include "esp_lcd_panel_io.h"

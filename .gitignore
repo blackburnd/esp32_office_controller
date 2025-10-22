@@ -7,3 +7,7 @@ remove/mqtt.c
 remove/mqtt.h
 remove/waveshare_rgb_lcd_port.c
 remove/waveshare_rgb_lcd_port.h
+
+# Don't commit sdkconfig with secrets
+sdkconfig
+sdkconfig.old
