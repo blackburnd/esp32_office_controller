@@ -70,23 +70,23 @@ static lv_obj_t *my_since_label = NULL;
 static lv_obj_t *my_until_label = NULL;
 
 // Marriage date (Year, Month, Day)
-#define MARRIAGE_DATE_YEAR  2023
+#define MARRIAGE_DATE_YEAR 2023
 #define MARRIAGE_DATE_MONTH 11
-#define MARRIAGE_DATE_DAY   3
+#define MARRIAGE_DATE_DAY 3
 
 // Mia's birthday (May 8, 1995)
-#define MIA_BIRTH_YEAR  1995
+#define MIA_BIRTH_YEAR 1995
 #define MIA_BIRTH_MONTH 5
-#define MIA_BIRTH_DAY   8
+#define MIA_BIRTH_DAY 8
 
 // Daniel's birthday (August 22, 1980)
-#define MY_BIRTH_YEAR   1980
-#define MY_BIRTH_MONTH  8
-#define MY_BIRTH_DAY    22
+#define MY_BIRTH_YEAR 1980
+#define MY_BIRTH_MONTH 8
+#define MY_BIRTH_DAY 22
 
 // Objects referenced from other compilation units: define non-static to match 'extern' in headers
-lv_obj_t *camera_img_widget = NULL;            // declared extern in lcd.h
-lv_obj_t *weather_forecast_list = NULL;        // declared extern in weather.h
+lv_obj_t *camera_img_widget = NULL;     // declared extern in lcd.h
+lv_obj_t *weather_forecast_list = NULL; // declared extern in weather.h
 
 // Weather UI elements (extern'd in weather.h) - define once here (non-static)
 lv_obj_t *weather_icon_label = NULL;
@@ -189,7 +189,7 @@ void lcd_create_ui(void)
 
     lv_obj_remove_style_all(scr);
     lv_obj_set_style_bg_color(scr, COLOR_WHITE, 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_TRANSP, 0);
 
     // Title bar: dark blue background, white text (unchanged)
     title_bar = lv_obj_create(scr);
@@ -239,7 +239,6 @@ void lcd_create_ui(void)
     lv_obj_align(tabview, LV_ALIGN_TOP_LEFT, 0, 50);
     lv_obj_add_event_cb(tabview, tab_change_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-
     // Override tabview styles to use fixed colors (no palette, no borders/outlines)
     lv_obj_set_style_bg_color(tabview, COLOR_WHITE, LV_PART_MAIN);
     lv_obj_set_style_bg_color(tabview, COLOR_BLUE, LV_PART_ITEMS);
@@ -250,7 +249,7 @@ void lcd_create_ui(void)
     lv_obj_set_style_border_color(tabview, COLOR_BLUE, LV_PART_MAIN);
     lv_obj_set_style_border_width(tabview, 2, LV_PART_ITEMS);
     lv_obj_set_style_border_color(tabview, COLOR_GREY, LV_PART_ITEMS);
-    lv_obj_set_style_outline_width(tabview, 1, LV_PART_MAIN);  // Disable outlines
+    lv_obj_set_style_outline_width(tabview, 1, LV_PART_MAIN); // Disable outlines
     lv_obj_set_style_shadow_width(tabview, 0, LV_PART_MAIN);
     // Add: Disable outlines on focus for tabs
     lv_obj_set_style_outline_width(tabview, 1, LV_PART_ITEMS | LV_STATE_FOCUSED);
@@ -263,94 +262,114 @@ void lcd_create_ui(void)
     // renamed tab label to "Versaries"
     versaries_tab = lv_tabview_add_tab(tabview, "Versaries");
 
+    lv_obj_clear_flag(weather_tab, LV_OBJ_FLAG_SCROLLABLE);
+
     /* --- Weather Tab --- */
 #define WEATHER_LEFT_WIDTH 200  // 25% of ~800px tab width
-#define WEATHER_RIGHT_WIDTH 600  // 75% of ~800px tab width
+#define WEATHER_RIGHT_WIDTH 600 // 75% of ~800px tab width
 
     // Left side: Current forecast info (icon, temp, humidity, wind, conditions, button)
     weather_icon_label = lv_img_create(weather_tab);
-    lv_obj_set_size(weather_icon_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);  // Auto-size to image content
-    lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 10, 10);  // Top of left side
+    lv_obj_set_size(weather_icon_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT); // Auto-size to image content
+    lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 1, 1);           // Top of left side
+    lv_obj_set_style_bg_opa(weather_icon_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(weather_icon_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_outline_opa(weather_icon_label, LV_OPA_TRANSP, 0);
+
 
     weather_temp_label = lv_label_create(weather_tab);
     lv_label_set_text(weather_temp_label, "Loading...");
-    lv_obj_align(weather_temp_label, LV_ALIGN_TOP_LEFT, 10, 1040);
+    lv_obj_set_style_text_font(weather_temp_label, &lv_font_montserrat_30, 0);
+    lv_obj_align(weather_temp_label, LV_ALIGN_TOP_LEFT, 10, 600);
+
+    lv_obj_set_style_bg_opa(weather_temp_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(weather_temp_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_outline_opa(weather_temp_label, LV_OPA_TRANSP, 0);
 
     weather_humidity_label = lv_label_create(weather_tab);
     lv_label_set_text(weather_humidity_label, "");
-    lv_obj_align(weather_humidity_label, LV_ALIGN_TOP_LEFT, 10, 1070);
+    lv_obj_set_style_text_font(weather_humidity_label, &lv_font_montserrat_28, 0);
+    lv_obj_align(weather_humidity_label, LV_ALIGN_TOP_LEFT, 10, 990);
 
     weather_wind_label = lv_label_create(weather_tab);
     lv_label_set_text(weather_wind_label, "");
-    lv_obj_align(weather_wind_label, LV_ALIGN_TOP_LEFT, 10, 1100);
+    lv_obj_set_style_text_font(weather_wind_label, &lv_font_montserrat_28, 0);
+
+    lv_obj_align(weather_wind_label, LV_ALIGN_TOP_LEFT, 10, 1105);
+
 
     weather_conditions_label = lv_label_create(weather_tab);
     lv_label_set_text(weather_conditions_label, "");
-    lv_obj_align(weather_conditions_label, LV_ALIGN_TOP_LEFT, 10, 1130);
+    lv_obj_set_style_text_font(weather_conditions_label, &lv_font_montserrat_28, 0);
+
+
+    lv_obj_align(weather_conditions_label, LV_ALIGN_BOTTOM_LEFT, 1, 1);
+    lv_obj_set_style_bg_opa(weather_conditions_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(weather_conditions_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_outline_opa(weather_conditions_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_color(weather_conditions_label, COLOR_GREY, LV_PART_MAIN);
+
 
     // Set initial weather icon (now that weather_conditions_label exists)
     set_jpg_or_error(weather_icon_label, clear_day_jpg_start, clear_day_jpg_end, weather_conditions_label);
 
     // Fetch Weather button: create on the left column, but place it at extreme bottom-left
     lv_obj_t *fetch_weather_btn = lv_btn_create(weather_tab);
-    lv_obj_set_size(fetch_weather_btn, 180, 50);  // Fit left width
+    lv_obj_set_size(fetch_weather_btn, 180, 50); // Fit left width
     lv_obj_add_event_cb(fetch_weather_btn, fetch_weather_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_set_style_bg_color(fetch_weather_btn, lv_color_hex(0x1976D2), LV_PART_MAIN);
+
     lv_obj_t *weather_btn_label = lv_label_create(fetch_weather_btn);
     lv_label_set_text(weather_btn_label, "Refresh"); // Renamed from "Fetch Weather"
-// place at extreme bottom-left of the weather tab with a small margin
-    lv_obj_align(fetch_weather_btn, LV_ALIGN_BOTTOM_LEFT, 8, -8);
+                                                     // place at extreme bottom-left of the weather tab with a small margin
+    lv_obj_align(fetch_weather_btn, LV_ALIGN_BOTTOM_RIGHT, 2, 2);
     lv_obj_align(weather_btn_label, LV_ALIGN_CENTER, 0, 0);
 
     // Right side: Forecast list (make 10% narrower and 15% shorter)
     weather_forecast_list = lv_list_create(weather_tab);
-    lv_coord_t forecast_w = (WEATHER_RIGHT_WIDTH - 20) * 9 / 10;  // 10% narrower
+    lv_coord_t forecast_w = (WEATHER_RIGHT_WIDTH - 20) * 9 / 10; // 10% narrower
     lv_coord_t forecast_h = (350 * 85) / 100;                    // 15% shorter than original 350
     lv_obj_set_size(weather_forecast_list, forecast_w, forecast_h);
     lv_obj_align(weather_forecast_list, LV_ALIGN_TOP_RIGHT, -10, 10);
 
     // Set unified background color and remove borders for weather tab elements
-    lv_obj_set_style_bg_color(weather_tab, COLOR_WHITE, 0);
-    lv_obj_set_style_bg_opa(weather_tab, LV_OPA_COVER, 0);
+    //lv_obj_set_style_bg_color(weather_tab, COLOR_WHITE, 0);
+    lv_obj_set_style_bg_opa(weather_tab, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(weather_tab, 0, 0);
 
-    lv_obj_set_style_bg_color(weather_forecast_list, COLOR_WHITE, 0);
-    lv_obj_set_style_bg_opa(weather_forecast_list, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(weather_forecast_list, 0, 0);
+    lv_obj_set_style_bg_opa(weather_forecast_list, LV_OPA_TRANSP, 0); // Transparent background
+    lv_obj_set_style_border_width(weather_forecast_list, 0, 0);       // No border
 
-    // Remove borders from weather icon and labels
     lv_obj_set_style_border_width(weather_icon_label, 0, 0);
     lv_obj_set_style_border_width(weather_temp_label, 0, 0);
     lv_obj_set_style_border_width(weather_humidity_label, 0, 0);
     lv_obj_set_style_border_width(weather_wind_label, 0, 0);
     lv_obj_set_style_border_width(weather_conditions_label, 0, 0);
 
-    // Keep the PNG where it is, move the lower info labels down toward the bottom-left
-    lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 10, 10); // unchanged
+    lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 10, 10); 
     lv_obj_align(weather_temp_label, LV_ALIGN_BOTTOM_LEFT, 10, -120);
     lv_obj_align(weather_humidity_label, LV_ALIGN_BOTTOM_LEFT, 10, -100);
     lv_obj_align(weather_wind_label, LV_ALIGN_BOTTOM_LEFT, 10, -80);
-    lv_obj_align(weather_conditions_label, LV_ALIGN_BOTTOM_LEFT, 10, -60);
+    lv_obj_align(weather_conditions_label, LV_ALIGN_BOTTOM_LEFT, 1, 1);
 
     // --- Cameras Tab ---
     camera_img_widget = lv_img_create(cameras_tab);
-    lv_obj_remove_style_all(camera_img_widget);  // Remove all default/theme styles
+    lv_obj_remove_style_all(camera_img_widget); // Remove all default/theme styles
 
     lv_obj_set_size(camera_img_widget, 405, 304);
     lv_obj_align(camera_img_widget, LV_ALIGN_TOP_LEFT, 0, 0);
-    // Disable highlighting/selectability
+    // Disable highlighting/colorability
     lv_obj_clear_flag(camera_img_widget, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_clear_flag(camera_img_widget, LV_OBJ_FLAG_CLICK_FOCUSABLE);  // Prevent focus highlighting
-    lv_obj_clear_state(camera_img_widget, LV_STATE_PRESSED | LV_STATE_FOCUSED | LV_STATE_CHECKED);  // Force default state
+    lv_obj_clear_flag(camera_img_widget, LV_OBJ_FLAG_CLICK_FOCUSABLE);                             // Prevent focus highlighting
+    lv_obj_clear_state(camera_img_widget, LV_STATE_PRESSED | LV_STATE_FOCUSED | LV_STATE_CHECKED); // Force default state
 
     // Add a custom style to prevent borders/outlines and ensure consistency
     static lv_style_t camera_img_style;
     lv_style_init(&camera_img_style);
-    lv_style_set_border_width(&camera_img_style, 0);  // No border
-    lv_style_set_bg_opa(&camera_img_style, LV_OPA_TRANSP);  // Transparent background
-    lv_style_set_outline_width(&camera_img_style, 0);  // No outline
-    lv_obj_add_style(camera_img_widget, &camera_img_style, LV_STATE_DEFAULT);  // Apply to default state only
-
+    lv_style_set_border_width(&camera_img_style, 0);                          // No border
+    lv_style_set_bg_opa(&camera_img_style, LV_OPA_TRANSP);                    // Transparent background
+    lv_style_set_outline_width(&camera_img_style, 0);                         // No outline
+    lv_obj_add_style(camera_img_widget, &camera_img_style, LV_STATE_DEFAULT); // Apply to default state only
 
     lv_obj_set_style_bg_color(camera_img_widget, lv_color_hex(0x1976D2), LV_PART_MAIN);      // Inactive color
     lv_obj_set_style_bg_color(camera_img_widget, lv_color_hex(0x1976D2), LV_PART_INDICATOR); // Active color
@@ -363,189 +382,185 @@ void lcd_create_ui(void)
     lv_obj_set_size(auto_refresh_switch, 80, 40);
     lv_obj_align(auto_refresh_switch, LV_ALIGN_TOP_LEFT, 10, 314); // Adjusted for new video height: 304 + 10
     lv_obj_add_event_cb(auto_refresh_switch, auto_refresh_switch_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    lv_obj_set_style_bg_color(auto_refresh_switch, COLOR_BLUE, LV_PART_MAIN);      // Inactive color
-    //lv_obj_set_style_bg_color(auto_refresh_switch, COLOR_BLUE, LV_PART_INDICATOR); // Active color
-    //lv_obj_set_style_bg_color(auto_refresh_switch, COLOR_BLUE, LV_PART_KNOB);      // Knob color
-    // Disable highlighting/selectability
+    lv_obj_set_style_bg_color(auto_refresh_switch, COLOR_BLUE, LV_PART_MAIN); // Inactive color
+    // lv_obj_set_style_bg_color(auto_refresh_switch, COLOR_BLUE, LV_PART_INDICATOR); // Active color
+    // lv_obj_set_style_bg_color(auto_refresh_switch, COLOR_BLUE, LV_PART_KNOB);      // Knob color
+    //  Disable highlighting/selectability
     lv_obj_clear_flag(auto_refresh_switch, LV_OBJ_FLAG_CLICK_FOCUSABLE);
     // Default to off (no LV_STATE_CHECKED)
 
     auto_refresh_switch_label = lv_label_create(cameras_tab);
     lv_label_set_text(auto_refresh_switch_label, "Auto Refresh");
     lv_obj_set_style_text_color(auto_refresh_switch_label, COLOR_DARK_GREY, 0);
-    //lv_obj_set_style_bg_color(auto_refresh_switch_label, LV_OPA_TRANSP, LV_PART_MAIN);      // Inactive color
+    // lv_obj_set_style_bg_color(auto_refresh_switch_label, LV_OPA_TRANSP, LV_PART_MAIN);      // Inactive color
 
     lv_obj_align_to(auto_refresh_switch_label, auto_refresh_switch, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
 
     // --- Camera button styles (shared for all camera buttons) ---
     static lv_style_t camera_btn_style;
-lv_style_init(&camera_btn_style);
+    lv_style_init(&camera_btn_style);
 
-lv_style_set_radius(&camera_btn_style, 3);
-lv_style_set_bg_opa(&camera_btn_style, LV_OPA_COVER);                      // Opaque background for gradient
-lv_style_set_bg_color(&camera_btn_style, lv_color_lighten(COLOR_BLUE, LV_OPA_20)); // Lightened blue for top of gradient
-lv_style_set_bg_grad_color(&camera_btn_style, lv_color_darken(COLOR_BLUE, LV_OPA_20)); // Darkened blue for bottom of gradient
-lv_style_set_bg_grad_dir(&camera_btn_style, LV_GRAD_DIR_VER);             // Vertical gradient
-lv_style_set_border_width(&camera_btn_style, 2);                          // Border width: 2 pixels
-lv_style_set_border_color(&camera_btn_style, COLOR_GREY);                 // Fixed grey (no palette)
-lv_style_set_shadow_width(&camera_btn_style, 5);                          // Shadow width: 5 pixels for 3D depth
-lv_style_set_shadow_color(&camera_btn_style, lv_color_darken(COLOR_GREY, LV_OPA_50)); // Darker grey shadow
-lv_style_set_shadow_ofs_x(&camera_btn_style, 2);                          // Shadow offset X
-lv_style_set_shadow_ofs_y(&camera_btn_style, 2);                          // Shadow offset Y
-lv_style_set_outline_color(&camera_btn_style, COLOR_BLUE);                // Fixed blue (no palette)
-lv_style_set_text_color(&camera_btn_style, COLOR_WHITE);
+    lv_style_set_radius(&camera_btn_style, 3);
+    lv_style_set_bg_opa(&camera_btn_style, LV_OPA_COVER);                                  // Opaque background for gradient
+    lv_style_set_bg_color(&camera_btn_style, lv_color_lighten(COLOR_BLUE, LV_OPA_20));     // Lightened blue for top of gradient
+    lv_style_set_bg_grad_color(&camera_btn_style, lv_color_darken(COLOR_BLUE, LV_OPA_20)); // Darkened blue for bottom of gradient
+    lv_style_set_bg_grad_dir(&camera_btn_style, LV_GRAD_DIR_VER);                          // Vertical gradient
+    lv_style_set_border_width(&camera_btn_style, 2);                                       // Border width: 2 pixels
+    lv_style_set_border_color(&camera_btn_style, COLOR_GREY);                              // Fixed grey (no palette)
+    lv_style_set_shadow_width(&camera_btn_style, 5);                                       // Shadow width: 5 pixels for 3D depth
+    lv_style_set_shadow_color(&camera_btn_style, lv_color_darken(COLOR_GREY, LV_OPA_50));  // Darker grey shadow
+    lv_style_set_shadow_ofs_x(&camera_btn_style, 2);                                       // Shadow offset X
+    lv_style_set_shadow_ofs_y(&camera_btn_style, 2);                                       // Shadow offset Y
+    lv_style_set_outline_color(&camera_btn_style, COLOR_BLUE);                             // Fixed blue (no palette)
+    lv_style_set_text_color(&camera_btn_style, COLOR_WHITE);
 
-static lv_style_t camera_btn_style_pressed;
-lv_style_init(&camera_btn_style_pressed);
+    static lv_style_t camera_btn_style_pressed;
+    lv_style_init(&camera_btn_style_pressed);
 
-// Make pressed state look sunken (reverse gradient, reduced shadow)
-lv_style_set_radius(&camera_btn_style_pressed, 3);
-lv_style_set_bg_opa(&camera_btn_style_pressed, LV_OPA_COVER);                      // Opaque background for gradient
-lv_style_set_bg_color(&camera_btn_style_pressed, lv_color_darken(COLOR_BLUE, LV_OPA_20)); // Darkened blue for top of gradient
-lv_style_set_bg_grad_color(&camera_btn_style_pressed, lv_color_lighten(COLOR_BLUE, LV_OPA_20)); // Lightened blue for bottom of gradient
-lv_style_set_bg_grad_dir(&camera_btn_style_pressed, LV_GRAD_DIR_VER);             // Vertical gradient
-lv_style_set_border_width(&camera_btn_style_pressed, 2);                          // Border width: 2 pixels
-lv_style_set_border_color(&camera_btn_style_pressed, COLOR_GREY);                 // Fixed grey (no palette)
-lv_style_set_shadow_width(&camera_btn_style_pressed, 2);                          // Reduced shadow for pressed effect
-lv_style_set_shadow_color(&camera_btn_style_pressed, lv_color_darken(COLOR_GREY, LV_OPA_50)); // Darker grey shadow
-lv_style_set_shadow_ofs_x(&camera_btn_style_pressed, 1);                          // Reduced shadow offset X
-lv_style_set_shadow_ofs_y(&camera_btn_style_pressed, 1);                          // Reduced shadow offset Y
-lv_style_set_outline_width(&camera_btn_style_pressed, 1);                         // Outline width: 1 pixel
-lv_style_set_outline_color(&camera_btn_style_pressed, COLOR_BLUE);                // Fixed blue (no palette)
-lv_style_set_text_color(&camera_btn_style_pressed, COLOR_WHITE);
+    // Make pressed state look sunken (reverse gradient, reduced shadow)
+    lv_style_set_radius(&camera_btn_style_pressed, 3);
+    lv_style_set_bg_opa(&camera_btn_style_pressed, LV_OPA_COVER);                                   // Opaque background for gradient
+    lv_style_set_bg_color(&camera_btn_style_pressed, lv_color_darken(COLOR_BLUE, LV_OPA_20));       // Darkened blue for top of gradient
+    lv_style_set_bg_grad_color(&camera_btn_style_pressed, lv_color_lighten(COLOR_BLUE, LV_OPA_20)); // Lightened blue for bottom of gradient
+    lv_style_set_bg_grad_dir(&camera_btn_style_pressed, LV_GRAD_DIR_VER);                           // Vertical gradient
+    lv_style_set_border_width(&camera_btn_style_pressed, 2);                                        // Border width: 2 pixels
+    lv_style_set_border_color(&camera_btn_style_pressed, COLOR_GREY);                               // Fixed grey (no palette)
+    lv_style_set_shadow_width(&camera_btn_style_pressed, 2);                                        // Reduced shadow for pressed effect
+    lv_style_set_shadow_color(&camera_btn_style_pressed, lv_color_darken(COLOR_GREY, LV_OPA_50));   // Darker grey shadow
+    lv_style_set_shadow_ofs_x(&camera_btn_style_pressed, 1);                                        // Reduced shadow offset X
+    lv_style_set_shadow_ofs_y(&camera_btn_style_pressed, 1);                                        // Reduced shadow offset Y
+    lv_style_set_outline_width(&camera_btn_style_pressed, 1);                                       // Outline width: 1 pixel
+    lv_style_set_outline_color(&camera_btn_style_pressed, COLOR_BLUE);                              // Fixed blue (no palette)
+    lv_style_set_text_color(&camera_btn_style_pressed, COLOR_WHITE);
 
-// Add a focused style identical to default (raised look)
-static lv_style_t camera_btn_style_focused;
-lv_style_init(&camera_btn_style_focused);
-lv_style_set_radius(&camera_btn_style_focused, 3);
-lv_style_set_bg_opa(&camera_btn_style_focused, LV_OPA_COVER);
-lv_style_set_bg_color(&camera_btn_style_focused, lv_color_lighten(COLOR_BLUE, LV_OPA_20));
-lv_style_set_bg_grad_color(&camera_btn_style_focused, lv_color_darken(COLOR_BLUE, LV_OPA_20));
-lv_style_set_bg_grad_dir(&camera_btn_style_focused, LV_GRAD_DIR_VER);
-lv_style_set_border_width(&camera_btn_style_focused, 2);                          // Border width: 2 pixels
-lv_style_set_border_color(&camera_btn_style_focused, COLOR_GREY);
-lv_style_set_shadow_width(&camera_btn_style_focused, 5);                          // Shadow width: 5 pixels for 3D depth
-lv_style_set_shadow_color(&camera_btn_style_focused, lv_color_darken(COLOR_GREY, LV_OPA_50));
-lv_style_set_shadow_ofs_x(&camera_btn_style_focused, 2);
-lv_style_set_shadow_ofs_y(&camera_btn_style_focused, 2);
-lv_style_set_outline_width(&camera_btn_style_focused, 1);                         // Outline width: 1 pixel
-lv_style_set_outline_color(&camera_btn_style_focused, COLOR_BLUE);
-lv_style_set_text_color(&camera_btn_style_focused, COLOR_WHITE);
+    // Add a focused style identical to default (raised look)
+    static lv_style_t camera_btn_style_focused;
+    lv_style_init(&camera_btn_style_focused);
+    lv_style_set_radius(&camera_btn_style_focused, 3);
+    lv_style_set_bg_opa(&camera_btn_style_focused, LV_OPA_TRANSP);
+    lv_style_set_bg_color(&camera_btn_style_focused, lv_color_lighten(COLOR_BLUE, LV_OPA_20));
+    lv_style_set_bg_grad_color(&camera_btn_style_focused, lv_color_darken(COLOR_BLUE, LV_OPA_20));
+    lv_style_set_bg_grad_dir(&camera_btn_style_focused, LV_GRAD_DIR_VER);
+    lv_style_set_border_width(&camera_btn_style_focused, 2); // Border width: 2 pixels
+    lv_style_set_border_color(&camera_btn_style_focused, COLOR_GREY);
+    lv_style_set_shadow_width(&camera_btn_style_focused, 5); // Shadow width: 5 pixels for 3D depth
+    lv_style_set_shadow_color(&camera_btn_style_focused, lv_color_darken(COLOR_GREY, LV_OPA_50));
+    lv_style_set_shadow_ofs_x(&camera_btn_style_focused, 2);
+    lv_style_set_shadow_ofs_y(&camera_btn_style_focused, 2);
+    lv_style_set_outline_width(&camera_btn_style_focused, 1); // Outline width: 1 pixel
+    lv_style_set_outline_color(&camera_btn_style_focused, COLOR_BLUE);
+    lv_style_set_text_color(&camera_btn_style_focused, COLOR_WHITE);
 
     // North Driveway button (Row 0)
     fetch_image_button = lv_btn_create(cameras_tab);
-    lv_obj_set_size(fetch_image_button, 225, 75);  // Updated size
+    lv_obj_set_size(fetch_image_button, 225, 75); // Updated size
     lv_obj_add_event_cb(fetch_image_button, fetch_north_driveway, LV_EVENT_CLICKED, NULL);
     lv_obj_clear_flag(fetch_image_button, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-    lv_obj_remove_style_all(fetch_image_button); // Remove theme styles (as in example)
-    lv_obj_add_style(fetch_image_button, &camera_btn_style, LV_STATE_DEFAULT);  // Removed LV_PART_MAIN
-    lv_obj_add_style(fetch_image_button, &camera_btn_style_pressed, LV_STATE_PRESSED);  // Removed LV_PART_MAIN
+    lv_obj_remove_style_all(fetch_image_button);                                       // Remove theme styles (as in example)
+    lv_obj_add_style(fetch_image_button, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
+    lv_obj_add_style(fetch_image_button, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
     lv_obj_add_style(fetch_image_button, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *image_btn_label = lv_label_create(fetch_image_button);
     lv_label_set_text(image_btn_label, "North Driveway");
-    lv_obj_remove_style_all(image_btn_label);  // Remove all default styles
+    lv_obj_remove_style_all(image_btn_label); // Remove all default styles
     lv_obj_align(image_btn_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(image_btn_label, 15, 0);  // Add 15px padding around the label
+    lv_obj_set_style_pad_all(image_btn_label, 15, 0); // Add 15px padding around the label
     lv_obj_set_style_bg_opa(image_btn_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(image_btn_label, 0, 0);
     lv_obj_clear_flag(image_btn_label, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_align(fetch_image_button, LV_ALIGN_TOP_LEFT, 435, 5);  // Shifted right by 10px
+    lv_obj_align(fetch_image_button, LV_ALIGN_TOP_LEFT, 435, 5); // Shifted right by 10px
 
     // East Driveway button (Row 1)
     camera3_btn = lv_btn_create(cameras_tab);
-    lv_obj_set_size(camera3_btn, 225, 75);  // Size unchanged
+    lv_obj_set_size(camera3_btn, 225, 75); // Size unchanged
     lv_obj_add_event_cb(camera3_btn, east_driveway_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_clear_flag(camera3_btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-    lv_obj_remove_style_all(camera3_btn); // Remove theme styles (as in example)
-    lv_obj_add_style(camera3_btn, &camera_btn_style, LV_STATE_DEFAULT);  // Removed LV_PART_MAIN
-    lv_obj_add_style(camera3_btn, &camera_btn_style_pressed, LV_STATE_PRESSED);  // Removed LV_PART_MAIN
+    lv_obj_remove_style_all(camera3_btn);                                       // Remove theme styles (as in example)
+    lv_obj_add_style(camera3_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
+    lv_obj_add_style(camera3_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
     lv_obj_add_style(camera3_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *cam3_label = lv_label_create(camera3_btn);
     lv_label_set_text(cam3_label, "East Driveway");
-    lv_obj_remove_style_all(cam3_label);  // Remove all default styles
+    lv_obj_remove_style_all(cam3_label); // Remove all default styles
     lv_obj_align(cam3_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(cam3_label, 15, 0);  // Add 15px padding around the label
+    lv_obj_set_style_pad_all(cam3_label, 15, 0); // Add 15px padding around the label
     lv_obj_set_style_bg_opa(cam3_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(cam3_label, 0, 0);
     lv_obj_clear_flag(cam3_label, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_align(camera3_btn, LV_ALIGN_TOP_LEFT, 618, 5);  // Shifted right by 10px
-
+    lv_obj_align(camera3_btn, LV_ALIGN_TOP_LEFT, 618, 5); // Shifted right by 10px
 
     // South Driveway button (Row 2)
     camera_north_canal_btn = lv_btn_create(cameras_tab);
-    lv_obj_set_size(camera_north_canal_btn, 225, 75);  // Updated size
+    lv_obj_set_size(camera_north_canal_btn, 225, 75); // Updated size
     lv_obj_add_event_cb(camera_north_canal_btn, camera_north_canal_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_clear_flag(camera_north_canal_btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-    lv_obj_remove_style_all(camera_north_canal_btn); // Remove theme styles (as in example)
-    lv_obj_add_style(camera_north_canal_btn, &camera_btn_style, LV_STATE_DEFAULT);  // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_north_canal_btn, &camera_btn_style_pressed, LV_STATE_PRESSED);  // Removed LV_PART_MAIN
+    lv_obj_remove_style_all(camera_north_canal_btn);                                       // Remove theme styles (as in example)
+    lv_obj_add_style(camera_north_canal_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
+    lv_obj_add_style(camera_north_canal_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
     lv_obj_add_style(camera_north_canal_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *north_canal_label = lv_label_create(camera_north_canal_btn);
     lv_label_set_text(north_canal_label, "South Driveway");
-    lv_obj_remove_style_all(north_canal_label);  // Remove all default styles
+    lv_obj_remove_style_all(north_canal_label); // Remove all default styles
     lv_obj_align(north_canal_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(north_canal_label, 15, 0);  // Add 15px padding around the label
+    lv_obj_set_style_pad_all(north_canal_label, 15, 0); // Add 15px padding around the label
     lv_obj_set_style_bg_opa(north_canal_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(north_canal_label, 0, 0);
     lv_obj_clear_flag(north_canal_label, LV_OBJ_FLAG_CLICKABLE);
     // Reduce vertical separation between camera button rows by half (205 -> 105)
-    lv_obj_align(camera_north_canal_btn, LV_ALIGN_TOP_LEFT, 618, 85);  // Updated X to match East Driveway, Y halved
-
+    lv_obj_align(camera_north_canal_btn, LV_ALIGN_TOP_LEFT, 618, 85); // Updated X to match East Driveway, Y halved
 
     // Front Door button (Row 3)
     camera_front_door_btn = lv_btn_create(cameras_tab);
-    lv_obj_set_size(camera_front_door_btn, 225, 75);  // Updated size
+    lv_obj_set_size(camera_front_door_btn, 225, 75); // Updated size
     lv_obj_add_event_cb(camera_front_door_btn, camera_front_door_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_clear_flag(camera_front_door_btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-    lv_obj_remove_style_all(camera_front_door_btn); // Remove theme styles (as in example)
-    lv_obj_add_style(camera_front_door_btn, &camera_btn_style, LV_STATE_DEFAULT);  // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_front_door_btn, &camera_btn_style_pressed, LV_STATE_PRESSED);  // Removed LV_PART_MAIN
+    lv_obj_remove_style_all(camera_front_door_btn);                                       // Remove theme styles (as in example)
+    lv_obj_add_style(camera_front_door_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
+    lv_obj_add_style(camera_front_door_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
     lv_obj_add_style(camera_front_door_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *front_door_label = lv_label_create(camera_front_door_btn);
     lv_label_set_text(front_door_label, " Front Door ");
-    lv_obj_remove_style_all(front_door_label);  // Remove all default styles
+    lv_obj_remove_style_all(front_door_label); // Remove all default styles
     lv_obj_align(front_door_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(front_door_label, 15, 0);  // Add 15px padding around the label
+    lv_obj_set_style_pad_all(front_door_label, 15, 0); // Add 15px padding around the label
     lv_obj_set_style_bg_opa(front_door_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(front_door_label, 0, 0);
     lv_obj_clear_flag(front_door_label, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_align(camera_front_door_btn, LV_ALIGN_TOP_LEFT, 435, 85);  // Updated X and Y for even spacing
-
+    lv_obj_align(camera_front_door_btn, LV_ALIGN_TOP_LEFT, 435, 85); // Updated X and Y for even spacing
 
     // West Canal button (Row 4)
     camera_west_canal_btn = lv_btn_create(cameras_tab);
-    lv_obj_set_size(camera_west_canal_btn, 225, 75);  // Updated size
+    lv_obj_set_size(camera_west_canal_btn, 225, 75); // Updated size
     lv_obj_add_event_cb(camera_west_canal_btn, camera_west_canal_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_clear_flag(camera_west_canal_btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-    lv_obj_remove_style_all(camera_west_canal_btn); // Remove theme styles (as in example)
-    lv_obj_add_style(camera_west_canal_btn, &camera_btn_style, LV_STATE_DEFAULT);  // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_west_canal_btn, &camera_btn_style_pressed, LV_STATE_PRESSED);  // Removed LV_PART_MAIN
+    lv_obj_remove_style_all(camera_west_canal_btn);                                       // Remove theme styles (as in example)
+    lv_obj_add_style(camera_west_canal_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
+    lv_obj_add_style(camera_west_canal_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
     lv_obj_add_style(camera_west_canal_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *west_canal_label = lv_label_create(camera_west_canal_btn);
     lv_label_set_text(west_canal_label, " West Canal ");
-    lv_obj_remove_style_all(west_canal_label);  // Remove all default styles
+    lv_obj_remove_style_all(west_canal_label); // Remove all default styles
     lv_obj_align(west_canal_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(west_canal_label, 15, 0);  // Add 15px padding around the label
+    lv_obj_set_style_pad_all(west_canal_label, 15, 0); // Add 15px padding around the label
     lv_obj_set_style_bg_opa(west_canal_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(west_canal_label, 0, 0);
     lv_obj_clear_flag(west_canal_label, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_align(camera_west_canal_btn, LV_ALIGN_TOP_LEFT, 618, 185);  // Updated X to match East Driveway, Y to match Front Door
-
+    lv_obj_align(camera_west_canal_btn, LV_ALIGN_TOP_LEFT, 618, 185); // Updated X to match East Driveway, Y to match Front Door
 
     // Tiki button (Row 5)
     camera_tiki_btn = lv_btn_create(cameras_tab);
-    lv_obj_set_size(camera_tiki_btn, 225, 75);  // Updated size
+    lv_obj_set_size(camera_tiki_btn, 225, 75); // Updated size
     lv_obj_add_event_cb(camera_tiki_btn, camera_tiki_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_clear_flag(camera_tiki_btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-    lv_obj_remove_style_all(camera_tiki_btn); // Remove theme styles (as in example)
-    lv_obj_add_style(camera_tiki_btn, &camera_btn_style, LV_STATE_DEFAULT);  // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_tiki_btn, &camera_btn_style_pressed, LV_STATE_PRESSED);  // Removed LV_PART_MAIN
+    lv_obj_remove_style_all(camera_tiki_btn);                                       // Remove theme styles (as in example)
+    lv_obj_add_style(camera_tiki_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
+    lv_obj_add_style(camera_tiki_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
     lv_obj_add_style(camera_tiki_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *tiki_label = lv_label_create(camera_tiki_btn);
     lv_label_set_text(tiki_label, "   Tiki    ");
-    lv_obj_remove_style_all(tiki_label);  // Remove all default styles
+    lv_obj_remove_style_all(tiki_label); // Remove all default styles
     lv_obj_align(tiki_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(tiki_label, 15, 0);  // Add 15px padding around the label
+    lv_obj_set_style_pad_all(tiki_label, 15, 0); // Add 15px padding around the label
     lv_obj_set_style_bg_opa(tiki_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(tiki_label, 0, 0);
     lv_obj_clear_flag(tiki_label, LV_OBJ_FLAG_CLICKABLE);
@@ -553,17 +568,17 @@ lv_style_set_text_color(&camera_btn_style_focused, COLOR_WHITE);
 
     // North Canal button (Row 6)
     camera_south_yard_btn = lv_btn_create(cameras_tab);
-    lv_obj_set_size(camera_south_yard_btn, 225, 75);  // Updated size
+    lv_obj_set_size(camera_south_yard_btn, 225, 75); // Updated size
     lv_obj_add_event_cb(camera_south_yard_btn, camera_south_yard_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_clear_flag(camera_south_yard_btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-    lv_obj_remove_style_all(camera_south_yard_btn); // Remove theme styles (as in example)
-    lv_obj_add_style(camera_south_yard_btn, &camera_btn_style, LV_STATE_DEFAULT);  // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_south_yard_btn, &camera_btn_style_pressed, LV_STATE_PRESSED);  // Removed LV_PART_MAIN
+    lv_obj_remove_style_all(camera_south_yard_btn);                                       // Remove theme styles (as in example)
+    lv_obj_add_style(camera_south_yard_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
+    lv_obj_add_style(camera_south_yard_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
     lv_obj_add_style(camera_south_yard_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *south_yard_label = lv_label_create(camera_south_yard_btn);
     lv_label_set_text(south_yard_label, " North Canal ");
     lv_obj_align(south_yard_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(south_yard_label, 15, 0);  // Add 15px padding around the label
+    lv_obj_set_style_pad_all(south_yard_label, 15, 0); // Add 15px padding around the label
     lv_obj_set_style_bg_opa(south_yard_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(south_yard_label, 0, 0);
     lv_obj_clear_flag(south_yard_label, LV_OBJ_FLAG_CLICKABLE);
@@ -571,26 +586,24 @@ lv_style_set_text_color(&camera_btn_style_focused, COLOR_WHITE);
 
     lv_obj_align(camera_south_yard_btn, LV_ALIGN_TOP_LEFT, 425, 285); // Adjusted Y
 
-
     // South Yard button (Row 7)
     camera8_btn = lv_btn_create(cameras_tab);
-    lv_obj_set_size(camera8_btn, 225, 75);  // Updated size
+    lv_obj_set_size(camera8_btn, 225, 75); // Updated size
     lv_obj_add_event_cb(camera8_btn, camera8_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_clear_flag(camera8_btn, LV_OBJ_FLAG_CLICK_FOCUSABLE);
     lv_obj_remove_style_all(camera8_btn);
-    lv_obj_add_style(camera8_btn, &camera_btn_style, LV_STATE_DEFAULT);  // Removed LV_PART_MAIN
-    lv_obj_add_style(camera8_btn, &camera_btn_style_pressed, LV_STATE_PRESSED);  // Removed LV_PART_MAIN
+    lv_obj_add_style(camera8_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
+    lv_obj_add_style(camera8_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
     lv_obj_add_style(camera8_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *cam8_label = lv_label_create(camera8_btn);
     lv_label_set_text(cam8_label, " South Yard ");
-    lv_obj_remove_style_all(cam8_label);  // Remove all default styles
+    lv_obj_remove_style_all(cam8_label); // Remove all default styles
     lv_obj_align(cam8_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(cam8_label, 15, 0);  // Add 15px padding around the label
+    lv_obj_set_style_pad_all(cam8_label, 15, 0); // Add 15px padding around the label
     lv_obj_set_style_bg_opa(cam8_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(cam8_label, 0, 0);
     lv_obj_clear_flag(cam8_label, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_align(camera8_btn, LV_ALIGN_TOP_LEFT, 618, 285); // Adjusted Y
-
 
     // --- Central Controller Tab ---
     lv_color_t label_color = lv_color_hex(0x263238); // Blue Gray 900
@@ -689,8 +702,8 @@ lv_style_set_text_color(&camera_btn_style_focused, COLOR_WHITE);
 
     lv_obj_update_layout(cameras_tab);
 
-    // Trigger initial weather fetch since the weather tab is shown first
-    lcd_start_weather_fetch();
+    // Start weather auto-refresh timer (10s retry until success, then 30min)
+    weather_init_timer();
 }
 
 // --- Switch event handlers ---
@@ -816,7 +829,8 @@ void lcd_init(void)
     // Initialize PNG decoder once and keep LVGL image cache small to save RAM
     // Limit image cache entries (decoded bitmaps) to reduce memory usage
     static bool s_img_cache_set = false;
-    if (!s_img_cache_set) {
+    if (!s_img_cache_set)
+    {
         lv_img_cache_set_size(1);
         s_img_cache_set = true;
     }
@@ -867,8 +881,6 @@ static void auto_refresh_switch_event_cb(lv_event_t *e)
     }
 }
 
-
-
 void lcd_start_weather_fetch(void)
 {
     // Create a task to fetch weather data from HA
@@ -890,7 +902,8 @@ static void tab_change_event_cb(lv_event_t *e)
     uint32_t active_tab_idx = lv_tabview_get_tab_act(tv);
 
     // Tab indices: 0=Weather, 1=Cameras, 2=Controller, 3=Versaries
-    if (active_tab_idx == 0) {
+    if (active_tab_idx == 0)
+    {
         ESP_LOGI("UI", "Weather tab selected.");
         // On weather tab selection, immediately fetch the weather.
         weather_fetch_and_display();
@@ -911,18 +924,19 @@ static int days_between_dates(struct tm *date1, struct tm *date2)
 static void get_next_birthday(int birth_month, int birth_day, struct tm *now, struct tm *next_bday)
 {
     *next_bday = *now;
-    next_bday->tm_mon = birth_month - 1;  // tm_mon is 0-11
+    next_bday->tm_mon = birth_month - 1; // tm_mon is 0-11
     next_bday->tm_mday = birth_day;
     next_bday->tm_hour = 0;
     next_bday->tm_min = 0;
     next_bday->tm_sec = 0;
 
-    mktime(next_bday);  // Normalize
+    mktime(next_bday); // Normalize
 
     // If birthday already passed this year, move to next year
-    if (mktime(next_bday) < mktime(now)) {
+    if (mktime(next_bday) < mktime(now))
+    {
         next_bday->tm_year++;
-        mktime(next_bday);  // Normalize again
+        mktime(next_bday); // Normalize again
     }
 }
 
@@ -939,7 +953,8 @@ static void get_last_birthday(int birth_month, int birth_day, struct tm *now, st
     mktime(last_bday);
 
     // If birthday hasn't occurred yet this year, use last year
-    if (mktime(last_bday) > mktime(now)) {
+    if (mktime(last_bday) > mktime(now))
+    {
         last_bday->tm_year--;
         mktime(last_bday);
     }
@@ -966,7 +981,8 @@ static void update_versaries_display(void)
     int months = (days_married % 365) / 30;
     int days = (days_married % 365) % 30;
 
-    if (versaries_count_label) {
+    if (versaries_count_label)
+    {
         lvgl_port_lock(0);
         snprintf(buf, sizeof(buf), "%d years, %d months, %d days", years, months, days);
         lv_label_set_text(versaries_count_label, buf);
@@ -982,11 +998,13 @@ static void update_versaries_display(void)
     int days_since_mia = days_between_dates(&mia_last, &now_tm);
 
     lvgl_port_lock(0);
-    if (mia_since_label) {
+    if (mia_since_label)
+    {
         snprintf(buf, sizeof(buf), "%d days since", days_since_mia);
         lv_label_set_text(mia_since_label, buf);
     }
-    if (mia_until_label) {
+    if (mia_until_label)
+    {
         snprintf(buf, sizeof(buf), "%d days until", days_until_mia);
         lv_label_set_text(mia_until_label, buf);
     }
@@ -1001,11 +1019,13 @@ static void update_versaries_display(void)
     int days_since_mine = days_between_dates(&my_last, &now_tm);
 
     lvgl_port_lock(0);
-    if (my_since_label) {
+    if (my_since_label)
+    {
         snprintf(buf, sizeof(buf), "%d days since", days_since_mine);
         lv_label_set_text(my_since_label, buf);
     }
-    if (my_until_label) {
+    if (my_until_label)
+    {
         snprintf(buf, sizeof(buf), "%d days until", days_until_mine);
         lv_label_set_text(my_until_label, buf);
     }

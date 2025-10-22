@@ -22,6 +22,9 @@ void weather_fetch_task_func(void *pvParameters);
 // Declare the weather fetch function
 void weather_fetch_and_display(void);
 
+// Initialize weather auto-refresh timer (call once during startup)
+void weather_init_timer(void);
+
 // Make the helper visible to lcd.c (for setting JPG images)
 bool set_jpg_or_error(lv_obj_t *img_obj, const uint8_t *start, const uint8_t *end, lv_obj_t *err_label);
 

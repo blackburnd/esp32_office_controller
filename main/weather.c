@@ -5,13 +5,20 @@
 #include <cJSON.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/timers.h>
 #include "assets.h"
 #include "esp_lvgl_port.h"   // declares lvgl_port_lock / lvgl_port_unlock
 #include "esp_crt_bundle.h"  // declares esp_crt_bundle_attach
 #include <string.h>          // memcmp, strlen, etc.
 #include <time.h>
 #include <jpeg_decoder.h>    // For esp_jpeg_decode
+#include "esp_wifi.h"
+#include "esp_netif.h"
 static const char *TAG = "weather";
+
+// Timer for weather auto-refresh
+static TimerHandle_t weather_timer = NULL;
+static bool weather_fetch_success = false;
 
 
 // Increase buffer size for full JSON response (32 KB should suffice for forecast API)
@@ -78,12 +85,33 @@ static const char* get_wind_direction(int degrees) {
     return "Unknown";
 }
 
-// Fetch and display weather forecast (enhanced)
-void weather_fetch_and_display(void) {
+// Check if WiFi is connected
+static bool is_wifi_connected(void) {
+    wifi_ap_record_t ap_info;
+    esp_err_t err = esp_wifi_sta_get_ap_info(&ap_info);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "WiFi connected to SSID: %s", ap_info.ssid);
+        return true;
+    }
+    ESP_LOGW(TAG, "WiFi not connected: %s", esp_err_to_name(err));
+    return false;
+}
+
+// Forward declaration for timer callback
+static void weather_timer_callback(TimerHandle_t xTimer);
+
+// Fetch and display weather forecast (enhanced) - returns true on success
+static bool weather_fetch_and_display_internal(void) {
+    // Check WiFi connection first
+    if (!is_wifi_connected()) {
+        ESP_LOGW(TAG, "WiFi not connected, skipping weather fetch");
+        return false;
+    }
+
     // Add checks to prevent crashes if UI is not ready
     if (!weather_icon_label || !weather_temp_label || !weather_humidity_label || !weather_wind_label || !weather_conditions_label || !weather_forecast_list) {
         ESP_LOGE(TAG, "Weather UI not initialized yet");
-        return;
+        return false;
     }
 
     // Show loading
@@ -113,14 +141,14 @@ void weather_fetch_and_display(void) {
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) {
         ESP_LOGE(TAG, "Failed to init HTTP client");
-        return;
+        return false;
     }
 
     esp_err_t err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open HTTP client: %s", esp_err_to_name(err));
         esp_http_client_cleanup(client);
-        return;
+        return false;
     }
 
     esp_http_client_fetch_headers(client);
@@ -289,13 +317,77 @@ void weather_fetch_and_display(void) {
         lv_label_set_text(weather_temp_label, "Request failed");
         lv_label_set_text(weather_humidity_label, "Request failed");
         lvgl_port_unlock();
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
     }
 
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
+    return true;  // Success
 }
 
-// Task function to fetch weather periodically
+// Task wrapper for weather fetch (runs in its own task context)
+static void weather_fetch_task_wrapper(void *pvParameters) {
+    bool success = weather_fetch_and_display_internal();
+
+    if (success && !weather_fetch_success) {
+        // First successful fetch - switch to 30-minute interval
+        weather_fetch_success = true;
+        if (weather_timer) {
+            xTimerChangePeriod(weather_timer, pdMS_TO_TICKS(30 * 60 * 1000), 0);
+            ESP_LOGI(TAG, "Weather fetch successful! Switched to 30-minute refresh");
+        }
+    } else if (!success && !weather_fetch_success) {
+        // Still failing - keep 10-second interval
+        ESP_LOGW(TAG, "Weather fetch failed, will retry in 10 seconds");
+    }
+
+    // Task deletes itself when done
+    vTaskDelete(NULL);
+}
+
+// Timer callback for periodic weather updates (lightweight - just spawns task)
+static void weather_timer_callback(TimerHandle_t xTimer) {
+    ESP_LOGI(TAG, "Weather timer triggered, spawning fetch task");
+    // Create task to do the actual fetch (don't block timer task)
+    xTaskCreate(weather_fetch_task_wrapper, "weather_fetch", 40960, NULL, 5, NULL);
+}
+
+// Public wrapper function that can be called from UI
+void weather_fetch_and_display(void) {
+    bool success = weather_fetch_and_display_internal();
+
+    if (success && !weather_fetch_success) {
+        // First successful fetch - update timer to 30-minute interval
+        weather_fetch_success = true;
+        if (weather_timer) {
+            xTimerChangePeriod(weather_timer, pdMS_TO_TICKS(30 * 60 * 1000), 0);
+            ESP_LOGI(TAG, "Weather fetch successful! Switched to 30-minute refresh");
+        }
+    }
+}
+
+// Initialize weather auto-refresh timer
+void weather_init_timer(void) {
+    // Create timer with 10-second initial period (for retries until first success)
+    weather_timer = xTimerCreate(
+        "WeatherTimer",
+        pdMS_TO_TICKS(10 * 1000),  // 10 seconds initially
+        pdTRUE,  // Auto-reload
+        NULL,
+        weather_timer_callback
+    );
+
+    if (weather_timer) {
+        xTimerStart(weather_timer, 0);
+        ESP_LOGI(TAG, "Weather timer started (10-second retry until first success)");
+    } else {
+        ESP_LOGE(TAG, "Failed to create weather timer");
+    }
+}
+
+// Task function to fetch weather periodically (deprecated - use timer instead)
 void weather_fetch_task_func(void *pvParameters)
 {
     while (1) {
