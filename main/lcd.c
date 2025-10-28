@@ -12,6 +12,9 @@
 #include "freertos/task.h"
 #include <time.h>
 
+// Global base style to override theme defaults
+static lv_style_t style_base_no_visuals;
+
 void water_valve_state_cb(int relay_index, bool state);
 void central_vacuum_state_cb(int relay_index, bool state);
 void vacuum_pump_state_cb(int relay_index, bool state);
@@ -94,6 +97,10 @@ lv_obj_t *weather_temp_label = NULL;
 lv_obj_t *weather_humidity_label = NULL;
 lv_obj_t *weather_wind_label = NULL;
 lv_obj_t *weather_conditions_label = NULL;
+static lv_obj_t *weather_timestamp_label = NULL;
+
+// Track previous tab to detect actual tab changes
+static uint32_t previous_tab_idx = 0;  // Start on weather tab
 
 // Controller / camera UI (private)
 static lv_obj_t *water_switch = NULL;
@@ -185,13 +192,22 @@ static void camera_south_yard_btn_event_cb(lv_event_t *e)
 
 void lcd_create_ui(void)
 {
+    // Initialize base style to override all theme visuals
+    lv_style_init(&style_base_no_visuals);
+    lv_style_set_bg_grad_dir(&style_base_no_visuals, LV_GRAD_DIR_NONE);
+    lv_style_set_border_width(&style_base_no_visuals, 0);
+    lv_style_set_border_opa(&style_base_no_visuals, LV_OPA_TRANSP);
+    lv_style_set_outline_width(&style_base_no_visuals, 0);
+    lv_style_set_outline_opa(&style_base_no_visuals, LV_OPA_TRANSP);
+    lv_style_set_shadow_width(&style_base_no_visuals, 0);
+    lv_style_set_shadow_opa(&style_base_no_visuals, LV_OPA_TRANSP);
+
     lv_obj_t *scr = lv_disp_get_scr_act(NULL);
 
     lv_obj_remove_style_all(scr);
     lv_obj_set_style_bg_color(scr, COLOR_WHITE, 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_TRANSP, 0);
+    lv_obj_add_style(scr, &style_base_no_visuals, 0);
 
-    // Title bar: dark blue background, white text (unchanged)
     title_bar = lv_obj_create(scr);
     lv_obj_set_size(title_bar, 800, 50);
     lv_obj_align(title_bar, LV_ALIGN_TOP_MID, 0, 0);
@@ -200,7 +216,6 @@ void lcd_create_ui(void)
     lv_obj_set_style_border_width(title_bar, 0, 0);
     lv_obj_clear_flag(title_bar, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Title bar icons and labels: white text (unchanged)
     wifi_icon = lv_label_create(title_bar);
     lv_label_set_text(wifi_icon, LV_SYMBOL_WIFI);
     lv_obj_set_style_text_color(wifi_icon, lv_color_white(), 0);
@@ -240,117 +255,157 @@ void lcd_create_ui(void)
     lv_obj_add_event_cb(tabview, tab_change_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     // Override tabview styles to use fixed colors (no palette, no borders/outlines)
-    lv_obj_set_style_bg_color(tabview, COLOR_WHITE, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(tabview, COLOR_BLUE, LV_PART_ITEMS);
-    lv_obj_set_style_bg_color(tabview, COLOR_LIGHT_GREY, LV_PART_ITEMS | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_color(tabview, COLOR_WHITE, LV_PART_ITEMS);
-    lv_obj_set_style_text_color(tabview, COLOR_DARK_GREY, LV_PART_ITEMS | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(tabview, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(tabview, COLOR_BLUE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(tabview, 2, LV_PART_ITEMS);
-    lv_obj_set_style_border_color(tabview, COLOR_GREY, LV_PART_ITEMS);
-    lv_obj_set_style_outline_width(tabview, 1, LV_PART_MAIN); // Disable outlines
-    lv_obj_set_style_shadow_width(tabview, 0, LV_PART_MAIN);
+   lv_obj_set_style_bg_color(tabview, COLOR_WHITE, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(tabview, COLOR_WHITE, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(tabview, COLOR_WHITE, LV_PART_ITEMS | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(tabview, LV_OPA_TRANSP, 0);
+
+    //lv_obj_set_style_text_color(tabview, COLOR_WHITE, LV_PART_ITEMS);
+    //lv_obj_set_style_text_color(tabview, COLOR_DARK_GREY, LV_PART_ITEMS | LV_STATE_DEFAULT);
+    //lv_obj_set_style_border_width(tabview, 2, LV_PART_MAIN);
+    //lv_obj_set_style_border_color(tabview, COLOR_BLUE, LV_PART_MAIN);
+   // lv_obj_set_style_border_width(tabview, 2, LV_PART_ITEMS);
+   // lv_obj_set_style_border_color(tabview, COLOR_GREY, LV_PART_ITEMS);
+   // lv_obj_set_style_outline_width(tabview, 1, LV_PART_MAIN); // Disable outlines
+   // lv_obj_set_style_shadow_width(tabview, 0, LV_PART_MAIN);
     // Add: Disable outlines on focus for tabs
-    lv_obj_set_style_outline_width(tabview, 1, LV_PART_ITEMS | LV_STATE_FOCUSED);
-    lv_obj_set_style_border_width(tabview, 2, LV_PART_ITEMS | LV_STATE_FOCUSED);
+   // lv_obj_set_style_outline_width(tabview, 1, LV_PART_ITEMS | LV_STATE_FOCUSED);
+   //// lv_obj_set_style_border_width(tabview, 2, LV_PART_ITEMS | LV_STATE_FOCUSED);
+
+    // Disable gradients on tabview
+    lv_obj_set_style_bg_grad_dir(tabview, LV_GRAD_DIR_NONE, 0);
+    lv_obj_set_style_bg_grad_dir(tabview, LV_GRAD_DIR_NONE, LV_PART_ITEMS);
 
     // Add tabs (styles applied above will override defaults)
     weather_tab = lv_tabview_add_tab(tabview, "Weather");
     cameras_tab = lv_tabview_add_tab(tabview, "Cameras");
     controller_tab = lv_tabview_add_tab(tabview, "Central Controller");
-    // renamed tab label to "Versaries"
     versaries_tab = lv_tabview_add_tab(tabview, "Versaries");
 
+    // Apply base style to all tabs to disable gradients, borders, shadows
+    lv_obj_add_style(weather_tab, &style_base_no_visuals, 0);
+    lv_obj_add_style(cameras_tab, &style_base_no_visuals, 0);
+    lv_obj_add_style(controller_tab, &style_base_no_visuals, 0);
+    lv_obj_add_style(versaries_tab, &style_base_no_visuals, 0);
+
+    // Set all tabs to solid white background (opaque) to block content underneath
     lv_obj_clear_flag(weather_tab, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(weather_tab, COLOR_WHITE, 0);
+    lv_obj_set_style_bg_opa(weather_tab, LV_OPA_COVER, 0);
+
+    lv_obj_set_style_bg_color(cameras_tab, COLOR_WHITE, 0);
+    lv_obj_set_style_bg_opa(cameras_tab, LV_OPA_COVER, 0);
+
+    lv_obj_set_style_bg_color(controller_tab, COLOR_WHITE, 0);
+    lv_obj_set_style_bg_opa(controller_tab, LV_OPA_COVER, 0);
+
+    lv_obj_set_style_bg_color(versaries_tab, COLOR_WHITE, 0);
+    lv_obj_set_style_bg_opa(versaries_tab, LV_OPA_COVER, 0);
 
     /* --- Weather Tab --- */
 #define WEATHER_LEFT_WIDTH 200  // 25% of ~800px tab width
 #define WEATHER_RIGHT_WIDTH 600 // 75% of ~800px tab width
 
-    // Left side: Current forecast info (icon, temp, humidity, wind, conditions, button)
+   
     weather_icon_label = lv_img_create(weather_tab);
-    lv_obj_set_size(weather_icon_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT); // Auto-size to image content
-    lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 1, 1);           // Top of left side
-    lv_obj_set_style_bg_opa(weather_icon_label, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_opa(weather_icon_label, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_outline_opa(weather_icon_label, LV_OPA_TRANSP, 0);
-
+    lv_obj_set_size(weather_icon_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT); 
 
     weather_temp_label = lv_label_create(weather_tab);
-    lv_label_set_text(weather_temp_label, "Loading...");
-    lv_obj_set_style_text_font(weather_temp_label, &lv_font_montserrat_30, 0);
-    lv_obj_align(weather_temp_label, LV_ALIGN_TOP_LEFT, 10, 600);
+    lv_obj_remove_style_all(weather_temp_label);
 
+    lv_label_set_text(weather_temp_label, "Loading...");
+    lv_obj_set_style_text_font(weather_temp_label, &lv_font_montserrat_28, 0);
+    lv_obj_clear_flag(weather_temp_label, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(weather_temp_label, LV_OBJ_FLAG_CLICK_FOCUSABLE);     
     lv_obj_set_style_bg_opa(weather_temp_label, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_opa(weather_temp_label, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_outline_opa(weather_temp_label, LV_OPA_TRANSP, 0);
+
 
     weather_humidity_label = lv_label_create(weather_tab);
     lv_label_set_text(weather_humidity_label, "");
     lv_obj_set_style_text_font(weather_humidity_label, &lv_font_montserrat_28, 0);
-    lv_obj_align(weather_humidity_label, LV_ALIGN_TOP_LEFT, 10, 990);
+    lv_obj_set_style_bg_opa(weather_humidity_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(weather_humidity_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_outline_opa(weather_humidity_label, LV_OPA_TRANSP, 0);
 
     weather_wind_label = lv_label_create(weather_tab);
     lv_label_set_text(weather_wind_label, "");
     lv_obj_set_style_text_font(weather_wind_label, &lv_font_montserrat_28, 0);
-
-    lv_obj_align(weather_wind_label, LV_ALIGN_TOP_LEFT, 10, 1105);
-
+    lv_obj_set_style_bg_opa(weather_wind_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(weather_wind_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_outline_opa(weather_wind_label, LV_OPA_TRANSP, 0);
 
     weather_conditions_label = lv_label_create(weather_tab);
     lv_label_set_text(weather_conditions_label, "");
     lv_obj_set_style_text_font(weather_conditions_label, &lv_font_montserrat_28, 0);
-
-
-    lv_obj_align(weather_conditions_label, LV_ALIGN_BOTTOM_LEFT, 1, 1);
     lv_obj_set_style_bg_opa(weather_conditions_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_opa(weather_conditions_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_outline_opa(weather_conditions_label, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_bg_color(weather_conditions_label, COLOR_GREY, LV_PART_MAIN);
-
+    lv_obj_set_style_border_opa(weather_conditions_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_outline_opa(weather_conditions_label, LV_OPA_TRANSP, 0);
 
     // Set initial weather icon (now that weather_conditions_label exists)
     set_jpg_or_error(weather_icon_label, clear_day_jpg_start, clear_day_jpg_end, weather_conditions_label);
 
+    // Create timestamp label at top right of weather tab
+    weather_timestamp_label = lv_label_create(weather_tab);
+    lv_obj_remove_style_all(weather_timestamp_label);
+    lv_label_set_text(weather_timestamp_label, "Last updated: --:--");
+    lv_obj_set_style_text_font(weather_timestamp_label, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(weather_timestamp_label, lv_color_hex(0x666666), 0); // Gray text
+    lv_obj_set_style_bg_opa(weather_timestamp_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(weather_timestamp_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_outline_opa(weather_timestamp_label, LV_OPA_TRANSP, 0);
+    lv_obj_align(weather_timestamp_label, LV_ALIGN_TOP_RIGHT, -10, 10);
+    lv_obj_clear_flag(weather_timestamp_label, LV_OBJ_FLAG_CLICKABLE);
+
     // Fetch Weather button: create on the left column, but place it at extreme bottom-left
     lv_obj_t *fetch_weather_btn = lv_btn_create(weather_tab);
+    lv_obj_remove_style_all(fetch_weather_btn); // Remove all default/theme styles
     lv_obj_set_size(fetch_weather_btn, 180, 50); // Fit left width
     lv_obj_add_event_cb(fetch_weather_btn, fetch_weather_btn_event_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_set_style_bg_color(fetch_weather_btn, lv_color_hex(0x1976D2), LV_PART_MAIN);
+    // Re-add clickable flag after removing all styles
+    lv_obj_add_flag(fetch_weather_btn, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(fetch_weather_btn, lv_color_hex(0x1976D2), 0);
+    lv_obj_set_style_bg_opa(fetch_weather_btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(fetch_weather_btn, 5, 0); // Optional: rounded corners
+    lv_obj_set_style_pad_all(fetch_weather_btn, 10, 0); // Padding for text
+    // Remove shadow on pressed state
+    //lv_obj_set_style_shadow_width(fetch_weather_btn, 0, LV_STATE_PRESSED);
 
     lv_obj_t *weather_btn_label = lv_label_create(fetch_weather_btn);
-    lv_label_set_text(weather_btn_label, "Refresh"); // Renamed from "Fetch Weather"
-                                                     // place at extreme bottom-left of the weather tab with a small margin
+    lv_obj_remove_style_all(weather_btn_label); // Remove all default styles from label
+    lv_label_set_text(weather_btn_label, "Refresh");
+    lv_obj_set_style_text_color(weather_btn_label, lv_color_white(), 0); // White text
+    // Make sure label doesn't intercept clicks
+    //lv_obj_clear_flag(weather_btn_label, LV_OBJ_FLAG_CLICKABLE);
+
     lv_obj_align(fetch_weather_btn, LV_ALIGN_BOTTOM_RIGHT, 2, 2);
     lv_obj_align(weather_btn_label, LV_ALIGN_CENTER, 0, 0);
 
     // Right side: Forecast list (make 10% narrower and 15% shorter)
     weather_forecast_list = lv_list_create(weather_tab);
-    lv_coord_t forecast_w = (WEATHER_RIGHT_WIDTH - 20) * 9 / 10; // 10% narrower
-    lv_coord_t forecast_h = (350 * 85) / 100;                    // 15% shorter than original 350
+    lv_coord_t forecast_w = (WEATHER_RIGHT_WIDTH - 20) * 9 / 9.5;
+    lv_coord_t forecast_h = (350 * 95) / 100;
     lv_obj_set_size(weather_forecast_list, forecast_w, forecast_h);
-    lv_obj_align(weather_forecast_list, LV_ALIGN_TOP_RIGHT, -10, 10);
+    lv_obj_align(weather_forecast_list, LV_ALIGN_TOP_RIGHT,7, 50);
 
-    // Set unified background color and remove borders for weather tab elements
-    //lv_obj_set_style_bg_color(weather_tab, COLOR_WHITE, 0);
     lv_obj_set_style_bg_opa(weather_tab, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(weather_tab, 0, 0);
 
-    lv_obj_set_style_bg_opa(weather_forecast_list, LV_OPA_TRANSP, 0); // Transparent background
-    lv_obj_set_style_border_width(weather_forecast_list, 0, 0);       // No border
-
+    lv_obj_set_style_bg_opa(weather_forecast_list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(weather_forecast_list, 0, 0); // No border
     lv_obj_set_style_border_width(weather_icon_label, 0, 0);
+    lv_obj_set_style_bg_opa(weather_icon_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(weather_temp_label, 0, 0);
     lv_obj_set_style_border_width(weather_humidity_label, 0, 0);
     lv_obj_set_style_border_width(weather_wind_label, 0, 0);
     lv_obj_set_style_border_width(weather_conditions_label, 0, 0);
 
-    lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 10, 10); 
-    lv_obj_align(weather_temp_label, LV_ALIGN_BOTTOM_LEFT, 10, -120);
-    lv_obj_align(weather_humidity_label, LV_ALIGN_BOTTOM_LEFT, 10, -100);
-    lv_obj_align(weather_wind_label, LV_ALIGN_BOTTOM_LEFT, 10, -80);
-    lv_obj_align(weather_conditions_label, LV_ALIGN_BOTTOM_LEFT, 1, 1);
+    lv_obj_align(weather_icon_label, LV_ALIGN_TOP_LEFT, 22, 1);
+    lv_obj_align(weather_temp_label, LV_ALIGN_BOTTOM_LEFT, 22, -150);
+    lv_obj_align(weather_humidity_label, LV_ALIGN_BOTTOM_LEFT, 22, -100);
+    lv_obj_align(weather_wind_label, LV_ALIGN_BOTTOM_LEFT, 22, -50);
+    lv_obj_align(weather_conditions_label, LV_ALIGN_BOTTOM_LEFT, 22, 1);
 
     // --- Cameras Tab ---
     camera_img_widget = lv_img_create(cameras_tab);
@@ -358,7 +413,6 @@ void lcd_create_ui(void)
 
     lv_obj_set_size(camera_img_widget, 405, 304);
     lv_obj_align(camera_img_widget, LV_ALIGN_TOP_LEFT, 0, 0);
-    // Disable highlighting/colorability
     lv_obj_clear_flag(camera_img_widget, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(camera_img_widget, LV_OBJ_FLAG_CLICK_FOCUSABLE);                             // Prevent focus highlighting
     lv_obj_clear_state(camera_img_widget, LV_STATE_PRESSED | LV_STATE_FOCUSED | LV_STATE_CHECKED); // Force default state
@@ -367,7 +421,7 @@ void lcd_create_ui(void)
     static lv_style_t camera_img_style;
     lv_style_init(&camera_img_style);
     lv_style_set_border_width(&camera_img_style, 0);                          // No border
-    lv_style_set_bg_opa(&camera_img_style, LV_OPA_TRANSP);                    // Transparent background
+    lv_style_set_bg_opa(&camera_img_style, LV_OPA_COVER);                    // Transparent background
     lv_style_set_outline_width(&camera_img_style, 0);                         // No outline
     lv_obj_add_style(camera_img_widget, &camera_img_style, LV_STATE_DEFAULT); // Apply to default state only
 
@@ -888,6 +942,29 @@ void lcd_start_weather_fetch(void)
     xTaskCreate(weather_fetch_task_func, "weather_fetch", 12288, NULL, 5, NULL);
 }
 
+// Update weather timestamp label
+void lcd_update_weather_timestamp(void)
+{
+    if (weather_timestamp_label == NULL) {
+        return;
+    }
+
+    // Get current time
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    // Format timestamp
+    char timestamp_buf[64];
+    strftime(timestamp_buf, sizeof(timestamp_buf), "Updated: %I:%M %p", &timeinfo);
+
+    // Update label (with LVGL lock)
+    lvgl_port_lock(0);
+    lv_label_set_text(weather_timestamp_label, timestamp_buf);
+    lvgl_port_unlock();
+}
+
 // --- Fetch Weather button event handler ---
 static void fetch_weather_btn_event_cb(lv_event_t *e)
 {
@@ -896,18 +973,37 @@ static void fetch_weather_btn_event_cb(lv_event_t *e)
     weather_fetch_and_display();
 }
 
+// Helper function to check if weather has been fetched (checks timestamp label)
+static bool weather_has_been_fetched(void) {
+    if (weather_timestamp_label == NULL) {
+        return false;
+    }
+    const char *text = lv_label_get_text(weather_timestamp_label);
+    // Check if timestamp shows actual time (not the default "--:--")
+    return (text != NULL && strstr(text, "--:--") == NULL);
+}
+
 static void tab_change_event_cb(lv_event_t *e)
 {
     lv_obj_t *tv = lv_event_get_target(e);
     uint32_t active_tab_idx = lv_tabview_get_tab_act(tv);
 
     // Tab indices: 0=Weather, 1=Cameras, 2=Controller, 3=Versaries
-    if (active_tab_idx == 0)
+    if (active_tab_idx == 0 && previous_tab_idx != 99)
     {
-        ESP_LOGI("UI", "Weather tab selected.");
-        // On weather tab selection, immediately fetch the weather.
-        weather_fetch_and_display();
+        ESP_LOGI("UI", "Weather tab selected (from tab %u).", (unsigned int)previous_tab_idx);
+
+        // Only fetch if weather has already been fetched before
+        // This prevents initial fetch but allows refresh when revisiting tab
+        if (weather_has_been_fetched()) {
+            ESP_LOGI("UI", "Weather already fetched, refreshing...");
+            weather_fetch_and_display();
+        } else {
+            ESP_LOGI("UI", "Weather not yet fetched, skipping auto-fetch (use refresh button)");
+        }
     }
+
+    previous_tab_idx = active_tab_idx;
 }
 
 // --- Versaries timer and display logic ---
@@ -1042,9 +1138,7 @@ static void versaries_timer_cb(lv_timer_t *timer)
 // Setup timer and do initial update
 static void versaries_setup_timer_and_update(void)
 {
-    // Update immediately
-    update_versaries_display();
-
     // Create timer to update every minute (60000 ms)
+    // First update will happen after 60 seconds, giving time for WiFi and SNTP to sync
     versaries_update_timer = lv_timer_create(versaries_timer_cb, 60000, NULL);
 }

@@ -1,6 +1,6 @@
 {
   "idf.openOcdConfigs": [
-    "board/esp32s3-bridge.cfg"
+    "board/esp32s3-builtin.cfg"
   ],
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32s3"
@@ -11,7 +11,7 @@
     "--query-driver=/Users/danielblackburn/esp/esp-idf/tools/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc",
     "--compile-commands-dir=/Users/danielblackburn/Documents/HomeAssistantControllers/esp32_office_controller/build"
   ],
-  "idf.port": "/dev/tty.usbmodem3201",
+  "idf.port": "/dev/tty.wchusbserial59720521801",
   "idf.flashType": "UART",
   "files.associations": {
     "weather.h": "c",

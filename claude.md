@@ -15,6 +15,7 @@ This is an ESP32-S3 based office controller with a 7" touch LCD display (800x480
 - Display: ST7701 RGB LCD (800x480)
 - Touch: GT911 I2C touchscreen
 - Memory: Uses PSRAM for framebuffers
+- SD Card: TF card slot using SPI (GPIO11/12/13), CS controlled via CH422G I2C expander (GPIO8/9)
 
 ### Network Configuration
 - WiFi credentials: Configured in wifi.c
@@ -27,13 +28,14 @@ This is an ESP32-S3 based office controller with a 7" touch LCD display (800x480
 ### File Structure
 ```
 main/
-├── main.c              - Entry point, LCD/touch/LVGL initialization, SNTP setup
+├── main.c              - Entry point, LCD/touch/LVGL initialization, SNTP setup, SD card init
 ├── wifi.c/h           - WiFi connection management
 ├── mqtt.c/h           - MQTT client, relay control, HA discovery
 ├── lcd.c/h            - LVGL UI creation and updates
 ├── camera_client.c/h  - Reolink camera HTTP client
-├── weather.c/h        - OpenWeatherMap API client
-└── assets.h           - Embedded PNG weather icons
+├── weather.c/h        - OpenWeatherMap API client with SD card persistence
+├── sd_card.c/h        - SD card mount/unmount, CH422G I/O expander control
+└── assets.h           - Embedded JPG weather icons
 ```
 
 ### Important Notes
@@ -74,6 +76,19 @@ main/
 ### Issue: Weather icons not displaying
 **Fix**: Check that PNG assets are embedded in CMakeLists.txt and lv_png_init() is called.
 
+### Issue: SD card mount fails
+**Fix**:
+- Check that 4GB SD card is inserted in TF slot
+- Ensure card is FAT32 formatted
+- Verify CH422G I2C communication (GPIO8=SDA, GPIO9=SCL)
+- Check serial logs for specific error from `sd_card_init()`
+
+### Issue: Weather data not persisting between reboots
+**Fix**:
+- Verify SD card is mounted successfully (check logs for "SD card initialized successfully")
+- Check that `/sdcard/weather_data.json` file exists after weather fetch
+- If file is corrupt, delete it and let system fetch fresh data
+
 ## Key Functions
 
 ### MQTT (mqtt.c)
@@ -90,9 +105,23 @@ main/
 - `lcd_append_motion_event()` - Add event to scrolling log
 
 ### Weather (weather.c)
-- `weather_fetch_and_display()` - Fetch from OpenWeatherMap and update UI
+- `weather_fetch_and_display()` - Fetch from OpenWeatherMap and update UI (non-blocking, spawns task)
+- `weather_save_to_sd()` - Save weather JSON to SD card after successful fetch
+- `weather_load_from_sd()` - Load cached weather data from SD card on startup
 - Uses lat/lon: 26.1224, -80.1373 (Boynton Beach, FL)
 - Fetches 5-day forecast, groups by day, shows highs/lows
+- Weather data persists between reboots via SD card
+
+### SD Card (sd_card.c)
+- `sd_card_init()` - Initialize CH422G I/O expander and mount SD card via SPI
+- `sd_card_deinit()` - Unmount SD card and free resources
+- `sd_card_is_mounted()` - Check if SD card is currently mounted
+- `sd_card_get_capacity()` - Get SD card total and used space in MB
+- **Hardware**: Uses SPI2 (GPIO11=MOSI, GPIO12=CLK, GPIO13=MISO)
+- **CS Control**: SD card CS pin controlled via CH422G EXIO4 (I2C at GPIO8/9)
+- **Mount Point**: /sdcard
+- **Current Use**: Caches weather data as `/sdcard/weather_data.json`
+- **Future Use**: Can store camera snapshots, MQTT logs, config files
 
 ### Time Sync (main.c)
 - `initialize_sntp()` - Configure and start SNTP client
@@ -193,16 +222,29 @@ idf.py build flash monitor
 ## Credentials & API Keys
 
 ### MQTT
+
 - Username: mqtt
 - Password: mqtt
 
 ### Home Assistant
-- Access Token: (stored in mqtt.h)
+
+- Access Token: Stored in `sdkconfig.defaults` as `CONFIG_HA_ACCESS_TOKEN`
+- Base URL: Stored in `sdkconfig.defaults` as `CONFIG_HA_BASE_URL`
 
 ### OpenWeatherMap
-- API Key: (stored in mqtt.h as OPENWEATHERKEY)
 
-**IMPORTANT**: These should be moved to Kconfig or a separate credentials file in production.
+- API Key: Stored in `sdkconfig.defaults` as `CONFIG_OPENWEATHER_API_KEY`
+
+### Camera (Reolink)
+
+- Snapshot URL with credentials: Stored in `sdkconfig.defaults` as `CONFIG_CAMERA_SNAPSHOT_URL`
+
+**IMPORTANT SECURITY NOTES:**
+
+- All credentials are stored in `sdkconfig.defaults` which IS committed to git
+- The generated `sdkconfig` and `sdkconfig.old` files are gitignored (do NOT commit these)
+- These credentials persist through fullclean/rebuilds because they're in sdkconfig.defaults
+- For production, consider using environment variables or a secrets management system
 
 ## Last Known Issues (as of build)
 

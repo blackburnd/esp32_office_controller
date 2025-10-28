@@ -10,7 +10,11 @@
 // Forward declaration for the text area MQTT handler
 static void mqtt_textarea_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 
+// External functions from lcd.c
 extern void lcd_update_weather_forecast(const char *forecast_text);
+extern void water_valve_state_cb(int relay_index, bool state);
+extern void central_vacuum_state_cb(int relay_index, bool state);
+extern void vacuum_pump_state_cb(int relay_index, bool state);
 
 static const char *TAG = "mqtt";
 static esp_mqtt_client_handle_t mqtt_client = NULL;
@@ -168,18 +172,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         esp_mqtt_client_subscribe(mqtt_client, "vacuum_pump/cmd", 1);
         mqtt_publish_discovery_config();
 
-        // Add: Fetch weather forecast via HTTP
-        lcd_start_weather_fetch();  // Call the function from lcd.c
-
-        // Create a periodic timer to fetch weather every hour
-        static esp_timer_handle_t weather_timer;
-        esp_timer_create_args_t timer_args = {
-            .callback = (esp_timer_cb_t)lcd_start_weather_fetch,  // Use the function from lcd.c
-            .arg = NULL,
-            .name = "weather_fetch"
-        };
-        esp_timer_create(&timer_args, &weather_timer);
-        // esp_timer_start_periodic(weather_timer, 3600000000);  // Disabled for now
+        // Weather fetch is handled by weather_init_timer() in lcd.c
+        // Don't trigger weather fetch on MQTT connect to avoid memory pressure causing disconnects
 
         ESP_LOGI(TAG, "MQTT connected");
         lcd_update_ha_status(true, "192.168.1.206");
@@ -217,6 +211,8 @@ static void relay_state_change_handler(int relay_index, bool state)
 
 esp_err_t mqtt_init(void)
 {
+    ESP_LOGI(TAG, "Initializing MQTT client...");
+
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker = {
             .address = {
@@ -231,18 +227,44 @@ esp_err_t mqtt_init(void)
             },
             .client_id = "esp32_office_controller",
         },
+        .network = {
+            .timeout_ms = 10000,
+            .refresh_connection_after_ms = 0,  // Disable auto-refresh
+            .disable_auto_reconnect = false,
+        },
+        .session = {
+            .keepalive = 60,  // Send keepalive every 60 seconds
+            .disable_clean_session = false,
+        },
         .task = {
             .stack_size = 16384,  // Increased from 8192
         },
     };
+
+    ESP_LOGI(TAG, "Creating MQTT client (broker: mqtt://192.168.1.206:1883)");
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
-    if (!mqtt_client)
+    if (!mqtt_client) {
+        ESP_LOGE(TAG, "Failed to initialize MQTT client");
         return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Registering MQTT event handlers");
     esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
-    esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_textarea_event_handler, NULL);
+    // Disabled: Subscribing to ALL MQTT topics (#) causes connection overload and disconnects
+    // esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_textarea_event_handler, NULL);
+
+    ESP_LOGI(TAG, "Starting MQTT client");
     esp_err_t err = esp_mqtt_client_start(mqtt_client);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start MQTT client: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    ESP_LOGI(TAG, "Setting relay state change callback");
     mqtt_set_relay_callback(relay_state_change_handler);
-    return err;
+
+    ESP_LOGI(TAG, "MQTT initialization complete");
+    return ESP_OK;
 }
 
 static void mqtt_textarea_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -280,9 +302,18 @@ static void mqtt_textarea_event_handler(void *handler_args, esp_event_base_t bas
         }
         break;
     }
+    case MQTT_EVENT_DISCONNECTED:
+    case MQTT_EVENT_SUBSCRIBED:
+    case MQTT_EVENT_UNSUBSCRIBED:
+    case MQTT_EVENT_PUBLISHED:
+    case MQTT_EVENT_ERROR:
+    case MQTT_EVENT_BEFORE_CONNECT:
+    case MQTT_EVENT_DELETED:
+        // These events are handled by the main mqtt_event_handler, silently ignore here
+        break;
     default:
-        // Log unhandled MQTT events (e.g., MQTT_EVENT_DISCONNECTED, MQTT_EVENT_ERROR, etc.)
-        ESP_LOGW(TAG, "Textarea handler: Unhandled MQTT event ID=%ld", (long)event_id);
+        // Only log truly unexpected events
+        ESP_LOGW(TAG, "Textarea handler: Unexpected MQTT event ID=%ld", (long)event_id);
         break;
     }
 }

@@ -9,6 +9,30 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 0.5.3
+  espressif/esp-lib-utils:
+    component_hash: 9e81fa27e3a8292bed95d91754ebcb8f27f47117328b0b646446f29fc5a847fb
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.2.3
+  espressif/esp32_io_expander:
+    component_hash: c34d64ac6022fb351dc8e2a24eff5b60884c91fd8c50f96dd7d1b1728fae16d8
+    dependencies:
+    - name: espressif/esp-lib-utils
+      registry_url: https://components.espressif.com
+      require: public
+      version: 0.2.*
+    - name: idf
+      require: private
+      version: '>=5.1'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.1.1
   espressif/esp_jpeg:
     component_hash: defb83669293cbf86d0fa86b475ba5517aceed04ed70db435388c151ab37b5d7
     dependencies:
@@ -70,6 +94,7 @@ dependencies:
       type: local
     version: 8.4.0
 direct_dependencies:
+- espressif/esp32_io_expander
 - espressif/esp_jpeg
 - espressif/esp_lcd_touch
 - espressif/esp_lcd_touch_gt911
@@ -77,6 +102,6 @@ direct_dependencies:
 - espressif/esp_mmap_assets
 - idf
 - lvgl/lvgl
-manifest_hash: aa58405684ad4e2d289ea709513478a5b420aaa6c1e4775518d7937b830b98c1
+manifest_hash: 6447c99be403b9c4034ac3f1a3329411a378bfe64d4f96c88d9ead76ead04cf8
 target: esp32s3
 version: 2.0.0

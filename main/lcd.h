@@ -28,4 +28,7 @@ extern lv_obj_t *camera_img_widget;
 // Add declaration for weather fetch starter
 void lcd_start_weather_fetch(void);
 
+// Update weather timestamp
+void lcd_update_weather_timestamp(void);
+
 #endif // LCD_H

@@ -7,6 +7,7 @@ set(SOURCES
     lcd.c
     camera_client.c
     weather.c
+    sd_card.c
 )
 
 # Embed JPG assets from static/jpg/
@@ -70,7 +71,7 @@ idf_component_register(
     SRCS ${SOURCES}
     INCLUDE_DIRS "."
     EMBED_FILES ${ASSETS}  # Embeds the JPGs
-    REQUIRES lvgl esp_lvgl_port esp_http_client esp_wifi mqtt esp_event esp_netif esp-tls nvs_flash esp_jpeg json
+    REQUIRES lvgl esp_lvgl_port esp_http_client esp_wifi mqtt esp_event esp_netif esp-tls nvs_flash esp_jpeg json fatfs driver esp32_io_expander
 )
 
 idf_component_get_property(lvgl_lib lvgl__lvgl COMPONENT_LIB)

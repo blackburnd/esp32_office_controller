@@ -14,11 +14,20 @@
 #include <jpeg_decoder.h>    // For esp_jpeg_decode
 #include "esp_wifi.h"
 #include "esp_netif.h"
+#include "esp_heap_caps.h"   // heap_caps_get_free_size for internal RAM stats
 static const char *TAG = "weather";
 
 // Timer for weather auto-refresh
 static TimerHandle_t weather_timer = NULL;
 static bool weather_fetch_success = false;
+
+// Track running weather fetch task to avoid overlap
+static TaskHandle_t s_weather_task = NULL;
+
+// Explicit task stack size for TLS handshake + CRT bundle
+#ifndef WEATHER_FETCH_TASK_STACK
+#define WEATHER_FETCH_TASK_STACK 16384  // 16 KB
+#endif
 
 
 // Increase buffer size for full JSON response (32 KB should suffice for forecast API)
@@ -127,15 +136,23 @@ static bool weather_fetch_and_display_internal(void) {
     snprintf(url, sizeof(url), "https://api.openweathermap.org/data/2.5/forecast?lat=%s&lon=%s&appid=%s&units=imperial", WEATHER_LAT, WEATHER_LON, OPENWEATHERKEY);
     ESP_LOGI(TAG, "URL: %s", url);
 
+    // Log heap stats, especially internal RAM which mbedTLS prefers
+    size_t free_heap = esp_get_free_heap_size();
+    size_t free_internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    size_t min_free_heap = esp_get_minimum_free_heap_size();
+    ESP_LOGI(TAG, "Heap before HTTP: free=%u, internal=%u, min_free=%u", (unsigned)free_heap, (unsigned)free_internal, (unsigned)min_free_heap);
+
     esp_http_client_config_t config = {
         .url = url,
         .method = HTTP_METHOD_GET,
         .cert_pem = NULL,
-        .use_global_ca_store = true,
+        // Use certificate bundle only; no global CA store
         .crt_bundle_attach = esp_crt_bundle_attach,
         .timeout_ms = 10000,
-        .buffer_size = 4096,
-        .buffer_size_tx = 4096,
+        // Keep buffers modest to reduce internal RAM pressure
+        .buffer_size = 2048,
+        .buffer_size_tx = 1024,
+        .keep_alive_enable = false,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -147,14 +164,83 @@ static bool weather_fetch_and_display_internal(void) {
     esp_err_t err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open HTTP client: %s", esp_err_to_name(err));
-        esp_http_client_cleanup(client);
-        return false;
+        // Fallback: try plain HTTP if HTTPS fails to set up TLS (e.g., -0x7F00 alloc failure)
+        if (strncmp(url, "https://", 8) == 0) {
+            char http_url[256];
+            snprintf(http_url, sizeof(http_url), "http://%s", url + 8);
+            ESP_LOGW(TAG, "Retrying over HTTP (no TLS): %s", http_url);
+
+            esp_http_client_config_t http_cfg = {
+                .url = http_url,
+                .method = HTTP_METHOD_GET,
+                .timeout_ms = 10000,
+                .buffer_size = 2048,
+                .buffer_size_tx = 1024,
+                .keep_alive_enable = false,
+                .transport_type = HTTP_TRANSPORT_OVER_TCP,
+            };
+
+            esp_http_client_cleanup(client);
+            client = esp_http_client_init(&http_cfg);
+            if (!client) {
+                ESP_LOGE(TAG, "Failed to init HTTP client (HTTP fallback)");
+                return false;
+            }
+            err = esp_http_client_open(client, 0);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "HTTP fallback also failed to open: %s", esp_err_to_name(err));
+                esp_http_client_cleanup(client);
+                return false;
+            }
+        } else {
+            esp_http_client_cleanup(client);
+            return false;
+        }
     }
 
     esp_http_client_fetch_headers(client);
     int status_code = esp_http_client_get_status_code(client);
     int content_length = esp_http_client_get_content_length(client);
     ESP_LOGI(TAG, "HTTP status: %d, err: %s, content_length: %d", status_code, esp_err_to_name(err), content_length);
+
+    // NEW: if HTTPS read fails post-open (e.g., mbedTLS -0x7100), retry over HTTP
+    if (status_code < 0 && strncmp(url, "https://", 8) == 0) {
+        char http_url[256];
+        snprintf(http_url, sizeof(http_url), "http://%s", url + 8);
+        ESP_LOGW(TAG, "HTTPS read failed (status=%d), retrying over HTTP: %s", status_code, http_url);
+
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+
+        esp_http_client_config_t http_cfg = {
+            .url = http_url,
+            .method = HTTP_METHOD_GET,
+            .timeout_ms = 10000,
+            .buffer_size = 2048,
+            .buffer_size_tx = 1024,
+            .keep_alive_enable = false,
+            .transport_type = HTTP_TRANSPORT_OVER_TCP,
+        };
+
+        client = esp_http_client_init(&http_cfg);
+        if (!client) {
+            ESP_LOGE(TAG, "Failed to init HTTP client (HTTP fallback)");
+            return false;
+        }
+
+        err = esp_http_client_open(client, 0);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "HTTP fallback open() failed: %s", esp_err_to_name(err));
+            esp_http_client_cleanup(client);
+            return false;
+        }
+
+        esp_http_client_fetch_headers(client);
+        status_code = esp_http_client_get_status_code(client);
+        content_length = esp_http_client_get_content_length(client);
+        ESP_LOGI(TAG, "HTTP status (fallback): %d, err: %s, content_length: %d",
+                 status_code, esp_err_to_name(err), content_length);
+    }
 
     if (status_code == 200) {
         int total_read = 0;
@@ -329,6 +415,7 @@ static bool weather_fetch_and_display_internal(void) {
 
 // Task wrapper for weather fetch (runs in its own task context)
 static void weather_fetch_task_wrapper(void *pvParameters) {
+    ESP_LOGI(TAG, "Weather fetch task started (inside wrapper)");
     bool success = weather_fetch_and_display_internal();
 
     if (success && !weather_fetch_success) {
@@ -343,6 +430,8 @@ static void weather_fetch_task_wrapper(void *pvParameters) {
         ESP_LOGW(TAG, "Weather fetch failed, will retry in 10 seconds");
     }
 
+    // Clear handle before deleting self, to allow next spawn
+    s_weather_task = NULL;
     // Task deletes itself when done
     vTaskDelete(NULL);
 }
@@ -350,8 +439,34 @@ static void weather_fetch_task_wrapper(void *pvParameters) {
 // Timer callback for periodic weather updates (lightweight - just spawns task)
 static void weather_timer_callback(TimerHandle_t xTimer) {
     ESP_LOGI(TAG, "Weather timer triggered, spawning fetch task");
-    // Create task to do the actual fetch (don't block timer task)
-    xTaskCreate(weather_fetch_task_wrapper, "weather_fetch", 40960, NULL, 5, NULL);
+
+    // Avoid overlapping fetch tasks if a previous one is still running
+    if (s_weather_task != NULL) {
+        eTaskState st = eTaskGetState(s_weather_task);
+        if (st != eDeleted) {
+            ESP_LOGW(TAG, "Previous weather task still running (%d), skipping spawn", (int)st);
+            return;
+        }
+        // If deleted, clear the handle so we can create another
+        s_weather_task = NULL;
+    }
+
+    BaseType_t ret = xTaskCreatePinnedToCore(
+        weather_fetch_task_wrapper,
+        "weather_fetch",
+        WEATHER_FETCH_TASK_STACK,  // Increased from 8KB for TLS handshake
+        NULL,
+        5,
+        &s_weather_task,
+        tskNO_AFFINITY  // Let scheduler choose core
+    );
+
+    if (ret != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create weather fetch task! Error: %d (heap free: %" PRIu32 " bytes)",
+                 ret, esp_get_free_heap_size());
+    } else {
+        ESP_LOGI(TAG, "Weather fetch task created successfully (stack: %d bytes)", WEATHER_FETCH_TASK_STACK);
+    }
 }
 
 // Public wrapper function that can be called from UI

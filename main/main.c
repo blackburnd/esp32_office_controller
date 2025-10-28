@@ -25,6 +25,7 @@
 #include "esp_sntp.h"
 #include "esp_crt_bundle.h"
 #include "extra/libs/png/lv_png.h"
+#include "sd_card.h"
 #include <time.h>
 
 #define TAG "CENTRALCONTROLLER"
@@ -295,9 +296,13 @@ static esp_err_t app_lvgl_init(void)
         lvgl_touch_indev = NULL;
     }
 
-    // Set a custom theme with fixed colors to prevent palette changes and theme effects
-    lv_theme_t *theme = lv_theme_default_init(lvgl_disp, COLOR_BLUE, COLOR_GREY, false, &lv_font_montserrat_14);
+    // Initialize default theme
+    lv_theme_t *theme = lv_theme_default_init(lvgl_disp, lv_color_hex(0x1976D2), lv_color_hex(0x424242), false, &lv_font_montserrat_14);
     lv_disp_set_theme(lvgl_disp, theme);
+
+    // Disable gradients globally by setting default screen style
+    lv_obj_t *scr = lv_disp_get_scr_act(lvgl_disp);
+    lv_obj_set_style_bg_grad_dir(scr, LV_GRAD_DIR_NONE, 0);
 
     return ESP_OK;
 }
@@ -314,7 +319,10 @@ void app_main(void)
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    
+
+    // Register event handler BEFORE starting WiFi to catch IP_EVENT_STA_GOT_IP
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
+
     // Initialize and connect WiFi
     wifi_init_sta();
 
@@ -338,9 +346,22 @@ void app_main(void)
     lcd_create_ui();
     lvgl_port_unlock();
 
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
     // Now that UI is created, update WiFi status
     lcd_update_wifi_status(NULL, NULL);
+
+    // Initialize SD card for weather data caching
+    // CRITICAL: This must happen AFTER LCD init because CH422G controls both SD_CS and LCD_BL
+    ESP_LOGI(TAG, "Initializing SD card...");
+    esp_err_t sd_ret = sd_card_init();
+    if (sd_ret == ESP_OK) {
+        ESP_LOGI(TAG, "SD card mounted successfully");
+        uint64_t total_mb = 0, used_mb = 0;
+        if (sd_card_get_capacity(&total_mb, &used_mb) == ESP_OK) {
+            ESP_LOGI(TAG, "SD Card: %llu MB total, %llu MB used", total_mb, used_mb);
+        }
+    } else {
+        ESP_LOGW(TAG, "SD card initialization failed: %s (continuing without SD card)", esp_err_to_name(sd_ret));
+    }
 
     camera_client_start();
 
@@ -362,7 +383,13 @@ void app_main(void)
 
     now = time(NULL);
     localtime_r(&now, &timeinfo);
-    ESP_LOGI(TAG, "Current time: %04d-%02d-%02d %02d:%02d:%02d", 
+    ESP_LOGI(TAG, "Current time: %04d-%02d-%02d %02d:%02d:%02d",
              timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
              timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+
+    // Log heap status for debugging
+    ESP_LOGI(TAG, "Free heap: %" PRIu32 " bytes, Free internal: %zu bytes, Minimum free: %" PRIu32 " bytes",
+             esp_get_free_heap_size(),
+             heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             esp_get_minimum_free_heap_size());
 }

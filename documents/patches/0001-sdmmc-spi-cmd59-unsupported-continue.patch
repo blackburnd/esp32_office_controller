@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Office Controller <noreply@example.com>
+Date: Tue, 28 Oct 2025 10:00:00 -0400
+Subject: [PATCH] sdmmc(sdspi): tolerate CMD59 not supported and continue
+
+In SPI mode, enabling CRC via CMD59 is optional and many cards return
+"command not supported". Treat ESP_ERR_NOT_SUPPORTED as non-fatal,
+log a warning, and continue without CRC. This avoids aborting init
+for otherwise usable SDSPI cards.
+
+---
+ components/sdmmc/sdmmc_sd.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/components/sdmmc/sdmmc_sd.c b/components/sdmmc/sdmmc_sd.c
+index 0000000..1111111 100644
+--- a/components/sdmmc/sdmmc_sd.c
++++ b/components/sdmmc/sdmmc_sd.c
+@@ -1,7 +1,7 @@
+@@
+ esp_err_t sdmmc_init_spi_crc(sdmmc_card_t* card)
+ {
+     /* In SD mode, CRC checks of data transfers are mandatory and performed
+      * by the hardware. In SPI mode, CRC16 of data transfers is optional and
+      * needs to be enabled.
+      */
+     assert(host_is_spi(card));
+     esp_err_t err = sdmmc_send_cmd_crc_on_off(card, true);
+-    if (err != ESP_OK) {
+-        ESP_LOGE(TAG, "%s: sdmmc_send_cmd_crc_on_off returned 0x%x", __func__, err);
+-        return err;
+-    }
++    if (err != ESP_OK) {
++        if (err == ESP_ERR_NOT_SUPPORTED) {
++            ESP_LOGW(TAG, "%s: CRC on/off (CMD59) not supported in SPI mode; continuing without CRC", __func__);
++            return ESP_OK;
++        }
++        ESP_LOGE(TAG, "%s: sdmmc_send_cmd_crc_on_off returned 0x%x", __func__, err);
++        return err;
++    }
+     return ESP_OK;
+ }
+-- 
+2.39.3
