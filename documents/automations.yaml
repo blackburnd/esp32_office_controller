@@ -1,0 +1,567 @@
+- id: '1751218536414'
+  alias: cnc_panel_cent_vac_on
+  description: ''
+  trigger:
+  - type: turned_on
+    device_id: 342430666322f64737d09a763ab6a00f
+    entity_id: 3717aeb2b55e3fbe8c1af90ea7a7b1cd
+    domain: switch
+    trigger: device
+  condition: []
+  action:
+  - type: turn_on
+    device_id: 152810a3cb3932c9deb3b23f05743dc4
+    entity_id: 27b823a850fc4dadf840ece40f25caee
+    domain: switch
+  mode: single
+- id: '1751218598810'
+  alias: cnc_central_vac_off
+  description: ''
+  trigger:
+  - type: turned_off
+    device_id: 342430666322f64737d09a763ab6a00f
+    entity_id: 3717aeb2b55e3fbe8c1af90ea7a7b1cd
+    domain: switch
+    trigger: device
+  condition: []
+  action:
+  - type: turn_off
+    device_id: 152810a3cb3932c9deb3b23f05743dc4
+    entity_id: 27b823a850fc4dadf840ece40f25caee
+    domain: switch
+  mode: single
+- id: '1751218682663'
+  alias: cnc_panel_vacuum_on
+  description: ''
+  trigger:
+  - type: turned_on
+    device_id: 342430666322f64737d09a763ab6a00f
+    entity_id: 7d247eb229f853af5a347960917f253d
+    domain: switch
+    trigger: device
+  condition: []
+  action:
+  - type: turn_on
+    device_id: 152810a3cb3932c9deb3b23f05743dc4
+    entity_id: e0d75d600728ec58f37f10b7274820a7
+    domain: switch
+  mode: single
+- id: '1751218734108'
+  alias: cnc_panel_vacuum_off
+  description: ''
+  trigger:
+  - type: turned_off
+    device_id: 342430666322f64737d09a763ab6a00f
+    entity_id: 7d247eb229f853af5a347960917f253d
+    domain: switch
+    trigger: device
+  condition: []
+  action:
+  - type: turn_off
+    device_id: 152810a3cb3932c9deb3b23f05743dc4
+    entity_id: e0d75d600728ec58f37f10b7274820a7
+    domain: switch
+  mode: single
+- id: lcd_panel_central_vac_on
+  alias: CNC Panel Central Vacuum On
+  trigger:
+  - platform: state
+    entity_id: switch.esp32_office_controller_central_vacuum
+    to: 'on'
+  action:
+  - service: switch.turn_on
+    target:
+      entity_id: switch.27b823a850fc4dadf840ece40f25caee
+  mode: single
+- id: lcd_panel_central_vac_off
+  alias: CNC Central Vacuum Off
+  trigger:
+  - platform: state
+    entity_id: switch.esp32_office_controller_central_vacuum
+    to: 'off'
+  action:
+  - service: switch.turn_off
+    target:
+      entity_id: switch.27b823a850fc4dadf840ece40f25caee
+  mode: single
+- id: lcd_panel_vacuum_on
+  alias: CNC Panel Vacuum On
+  trigger:
+  - platform: state
+    entity_id: switch.esp32_office_controller_vacuum_pump
+    to: 'on'
+  action:
+  - service: switch.turn_on
+    target:
+      entity_id: switch.e0d75d600728ec58f37f10b7274820a7
+  mode: single
+- id: lcd_panel_vacuum_off
+  alias: CNC Panel Vacuum Off
+  trigger:
+  - platform: state
+    entity_id: switch.esp32_office_controller_vacuum_pump
+    to: 'off'
+  action:
+  - service: switch.turn_off
+    target:
+      entity_id: switch.e0d75d600728ec58f37f10b7274820a7
+  mode: single
+- id: lcd_panel_water_valve_on
+  alias: LCD Panel Water Valve On
+  trigger:
+  - platform: state
+    entity_id: switch.esp32_office_controller_water_valve
+    to: 'on'
+  action:
+  - service: switch.turn_on
+    target:
+      entity_id: switch.cdd96d83aed43fdde3c847bcad257e54
+  mode: single
+- id: lcd_panel_water_valve_off
+  alias: LCD Panel Water Valve Off
+  trigger:
+  - platform: state
+    entity_id: switch.esp32_office_controller_water_valve
+    to: 'off'
+  action:
+  - service: switch.turn_off
+    target:
+      entity_id: switch.cdd96d83aed43fdde3c847bcad257e54
+  mode: single
+- id: '1759250778554'
+  alias: New automation
+  description: ''
+  trigger:
+  - type: changed_states
+    device_id: 081f079079b6d3a0b7215a1aba11dbab
+    entity_id: b1f5e9a7f79deb11719d66b3982bc9c3
+    domain: switch
+    metadata:
+      secondary: false
+    trigger: device
+  condition: []
+  actions: []
+  mode: single
+- id: '1759696320752'
+  alias: New automation
+  description: ''
+  trigger:
+  - type: motion
+    device_id: cc44fbd417616e08dd8d71509f82a055
+    entity_id: 95e87c95620bf88cce05566a0120e9ea
+    domain: binary_sensor
+    metadata:
+      secondary: false
+    trigger: device
+  condition: []
+  action:
+  - action: notify.send_message
+    metadata: {}
+    data:
+      message: motion_front_door
+  mode: single
+- id: '1759696495584'
+  alias: New automation
+  description: ''
+  trigger:
+  - type: motion
+    device_id: cc44fbd417616e08dd8d71509f82a055
+    entity_id: 95e87c95620bf88cce05566a0120e9ea
+    domain: binary_sensor
+    trigger: device
+  condition: []
+  action:
+  - action: camera.snapshot
+    metadata: {}
+    data: {}
+  mode: single
+- id: '1759854126985'
+  alias: New automation
+  description: ''
+  trigger:
+  - type: motion
+    device_id: cc44fbd417616e08dd8d71509f82a055
+    entity_id: 95e87c95620bf88cce05566a0120e9ea
+    domain: binary_sensor
+    trigger: device
+  condition: []
+  action:
+  - action: notify.notify
+    metadata: {}
+    data:
+      message: front_door_motion
+  mode: single
+- id: '1759854249490'
+  alias: New automation
+  description: ''
+  trigger:
+  - type: motion
+    device_id: e249c2fc3309acc92873aa9e76835c9c
+    entity_id: 72e642ca7065b03f6dbc344e84cedd7c
+    domain: binary_sensor
+    metadata:
+      secondary: false
+    trigger: device
+  condition: []
+  action:
+  - action: notify.persistent_notification
+    metadata: {}
+    data:
+      message: south_west_motion
+  mode: single
+- id: '1759854303621'
+  alias: front door automation
+  description: ''
+  trigger:
+  - type: motion
+    device_id: cc44fbd417616e08dd8d71509f82a055
+    entity_id: 95e87c95620bf88cce05566a0120e9ea
+    domain: binary_sensor
+    trigger: device
+  condition: []
+  action:
+  - action: notify.notify
+    metadata: {}
+    data:
+      message: south_west_motion
+  mode: single
+  
+- id: nest_publish_states
+  alias: "Nest → MQTT: publish ambient/setpoint/mode/humidity"
+  description: "Publish Nest climate state to MQTT topics consumed by the ESP32 controller. Temperatures published in Fahrenheit."
+  mode: restart
+  variables:
+    climate_entity: climate.living_room
+  trigger:
+    # Trigger immediately when climate.set_temperature is called (from UI or ESP32)
+    - platform: event
+      event_type: call_service
+      event_data:
+        domain: climate
+        service: set_temperature
+    # Trigger on state changes (mode changes like cool/heat/off)
+    - platform: state
+      entity_id: climate.living_room
+    # Trigger on attribute changes (setpoint changes)
+    - platform: state
+      entity_id: climate.living_room
+      attribute: temperature
+    - platform: state
+      entity_id: climate.living_room
+      attribute: target_temp_high
+    - platform: state
+      entity_id: climate.living_room
+      attribute: target_temp_low
+    - platform: state
+      entity_id: climate.living_room
+      attribute: current_temperature
+    - platform: state
+      entity_id: climate.living_room
+      attribute: current_humidity
+  condition:
+    # Only process service calls for climate.living_room (filter out other climate entities)
+    - condition: or
+      conditions:
+        # Always allow non-service-call triggers (state/attribute/time)
+        - condition: template
+          value_template: "{{ trigger.platform != 'event' }}"
+        # For service call triggers, check if target is climate.living_room
+        - condition: and
+          conditions:
+            - condition: template
+              value_template: "{{ trigger.platform == 'event' }}"
+            - condition: template
+              value_template: >-
+                {{ 'climate.living_room' in (trigger.event.data.service_data.entity_id | default([]) | list) or
+                   trigger.event.data.service_data.entity_id | default('') == 'climate.living_room' }}
+  action:
+    - choose:
+        - conditions: []
+          sequence:
+            # Publish ambient (current) temperature in °F from climate entity attribute (already in Fahrenheit)
+            - service: mqtt.publish
+              data:
+                topic: nest/ambient/state
+                payload: >-
+                  {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+                retain: true
+            # Publish humidity percent (0-100) from climate entity attribute
+            - service: mqtt.publish
+              data:
+                topic: nest/humidity/state
+                payload: >-
+                  {{ state_attr(climate_entity, 'current_humidity') | float(0) }}
+                retain: true
+            # Publish current setpoint in °F - READ FROM SERVICE CALL DATA if available, otherwise from attributes
+            - service: mqtt.publish
+              data:
+                topic: nest/setpoint_cool/state
+                payload: >-
+                  {% if trigger.platform == 'event' and trigger.event.event_type == 'call_service' %}
+                    {# Service call trigger - read NEW value from service call data #}
+                    {% set service_data = trigger.event.data.service_data %}
+                    {% set temp_f = (service_data.get('temperature') or service_data.get('target_temp_high') or 76) | float %}
+                    {{ temp_f | round(0) }}
+                  {% else %}
+                    {# Attribute/state trigger - read from entity attributes #}
+                    {% set mode = state_attr(climate_entity, 'hvac_mode') | lower | default('off') %}
+                    {% set temp_f =
+                      (state_attr(climate_entity, 'temperature') if mode == 'cool' else
+                       state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
+                       state_attr(climate_entity, 'temperature')) | float(76) %}
+                    {{ temp_f | round(0) }}
+                  {% endif %}
+                retain: true
+            # Publish hvac mode (string)
+            - service: mqtt.publish
+              data:
+                topic: nest/mode/state
+                payload: "{{ states(climate_entity) }}"
+                retain: true
+- id: nest_consume_setpoint_cmd
+  alias: "MQTT → Nest: apply setpoint from controller"
+  description: "Apply setpoint commands from ESP32 controller (°F) to the Nest climate entity in HA. ESP32 sends Fahrenheit, HA climate entity expects Fahrenheit."
+  mode: parallel
+  max: 10
+  variables:
+    climate_entity: climate.living_room
+  trigger:
+    - platform: mqtt
+      topic: nest/setpoint_cool/cmd
+  condition: []
+  action:
+    - choose:
+        # COOL mode: set the single setpoint (cool) using temperature
+        - conditions: "{{ (state_attr(climate_entity, 'hvac_mode') | lower | default('')) == 'cool' or (states(climate_entity) | lower) == 'cool' }}"
+          sequence:
+            - service: climate.set_temperature
+              target:
+                entity_id: "{{ climate_entity }}"
+              data:
+                temperature: "{{ trigger.payload | float | round(0) }}"
+        # HEATCOOL mode: adjust the high (cool) setpoint only
+        - conditions: "{{ (state_attr(climate_entity, 'hvac_mode') | lower | default('')) == 'heat_cool' or (states(climate_entity) | lower) == 'heat_cool' }}"
+          sequence:
+            - service: climate.set_temperature
+              target:
+                entity_id: "{{ climate_entity }}"
+              data:
+                target_temp_high: "{{ trigger.payload | float | round(0) }}"
+      default: []
+- id: nest_respond_to_request
+  alias: "MQTT → Nest: respond to state request"
+  description: "When ESP32 requests thermostat state via nest/request_state, publish all current values. Temperatures published in Fahrenheit."
+  mode: queued
+  max: 5
+  variables:
+    climate_entity: climate.living_room
+  trigger:
+    - platform: mqtt
+      topic: nest/request_state
+  action:
+    - service: mqtt.publish
+      data:
+        topic: nest/ambient/state
+        payload: >-
+          {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/humidity/state
+        payload: >-
+          {{ state_attr(climate_entity, 'current_humidity') | float(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/setpoint_cool/state
+        payload: >-
+          {% set mode = state_attr(climate_entity, 'hvac_mode') | lower | default('off') %}
+          {% set temp_f =
+            (state_attr(climate_entity, 'temperature') if mode == 'cool' else
+             state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
+             state_attr(climate_entity, 'temperature')) | float(76) %}
+          {{ temp_f | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/mode/state
+        payload: "{{ states(climate_entity) }}"
+        retain: true
+
+# When the ESP32 controller comes online, immediately republish retained climate states
+- id: nest_republish_on_device_online
+  alias: "ESP Controller online → republish climate states"
+  mode: single
+  variables:
+    climate_entity: climate.living_room
+  trigger:
+    - platform: mqtt
+      topic: esp32_office_controller/availability
+      payload: "online"
+  action:
+    - service: mqtt.publish
+      data:
+        topic: nest/ambient/state
+        payload: >-
+          {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/humidity/state
+        payload: >-
+          {{ state_attr(climate_entity, 'current_humidity') | float(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/setpoint_cool/state
+        payload: >-
+          {% set mode = state_attr(climate_entity, 'hvac_mode') | lower | default('off') %}
+          {% set temp_f =
+            (state_attr(climate_entity, 'temperature') if mode == 'cool' else
+             state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
+             state_attr(climate_entity, 'temperature')) | float(76) %}
+          {{ temp_f | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/mode/state
+        payload: "{{ states(climate_entity) }}"
+        retain: true
+
+# On HA startup, republish current values so the controller UI gets retained states immediately
+- id: nest_republish_on_start
+  alias: "Nest → MQTT: republish on HA start"
+  mode: single
+  variables:
+    climate_entity: climate.living_room
+  trigger:
+    - platform: homeassistant
+      event: start
+  action:
+    - service: mqtt.publish
+      data:
+        topic: nest/ambient/state
+        payload: >-
+          {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/humidity/state
+        payload: >-
+          {{ state_attr(climate_entity, 'current_humidity') | float(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/setpoint_cool/state
+        payload: >-
+          {% set mode = state_attr(climate_entity, 'hvac_mode') | lower | default('off') %}
+          {% set temp_f =
+            (state_attr(climate_entity, 'temperature') if mode == 'cool' else
+             state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
+             state_attr(climate_entity, 'temperature')) | float(76) %}
+          {{ temp_f | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/mode/state
+        payload: "{{ states(climate_entity) }}"
+        retain: true
+- id: nest_publish_setpoint_cmd_on_change
+  alias: "Nest changed → MQTT: emit setpoint cmd (°F)"
+  description: "When climate.living_room is changed by a user in HA, publish setpoint (°F) to MQTT cmd topic."
+  mode: restart
+  initial_state: false  # DISABLED - was interfering with Nest control
+  variables:
+    climate_entity: climate.living_room
+  trigger:
+    - platform: state
+      entity_id: climate.living_room
+      attribute: temperature
+    - platform: state
+      entity_id: climate.living_room
+      attribute: target_temp_high
+  condition:
+    # Only fire for user-initiated changes (prevents feedback loop from automations)
+    - condition: template
+      value_template: "{{ trigger.to_state.context.user_id is not none }}"
+  action:
+    - service: mqtt.publish
+      data:
+        topic: nest/setpoint_cool/cmd
+        payload: >-
+          {% set mode = (state_attr(climate_entity, 'hvac_mode') | lower | default('off')) %}
+          {% set raw =
+            (state_attr(climate_entity, 'temperature') if mode == 'cool' else
+             state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
+             state_attr(climate_entity, 'temperature')) | float(0) %}
+          {{ raw | round(0) }}
+        retain: false
+        qos: 1
+
+# Removed - wasn't triggering reliably
+
+# Listen for Nest device events directly from the Google Nest integration
+# This captures cloud push notifications when changes are made via Nest app
+- id: nest_device_event_listener
+  alias: "Nest: device event listener"
+  description: "Capture Nest device events from Google Cloud and immediately publish to MQTT"
+  mode: queued
+  max: 10
+  variables:
+    climate_entity: climate.living_room
+  trigger:
+    # Catch all Nest-related events
+    - platform: event
+      event_type: nest_event
+    # Also listen for device registry updates
+    - platform: event
+      event_type: device_registry_updated
+  condition:
+    # Only process events related to our Nest device
+    - condition: template
+      value_template: >-
+        {{ 'climate.living_room' in trigger.event.data.get('entity_id', '') or
+           'living_room' in (trigger.event.data.get('device_id', '') | lower) }}
+  action:
+    # Force immediate state refresh
+    - service: homeassistant.update_entity
+      target:
+        entity_id: climate.living_room
+    - delay:
+        milliseconds: 200
+    # Publish all values to MQTT
+    - service: mqtt.publish
+      data:
+        topic: nest/ambient/state
+        payload: >-
+          {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/humidity/state
+        payload: >-
+          {{ state_attr(climate_entity, 'current_humidity') | float(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/setpoint_cool/state
+        payload: >-
+          {% set mode = state_attr(climate_entity, 'hvac_mode') | lower | default('off') %}
+          {% set temp_f =
+            (state_attr(climate_entity, 'temperature') if mode == 'cool' else
+             state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
+             state_attr(climate_entity, 'temperature')) | float(76) %}
+          {{ temp_f | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/mode/state
+        payload: "{{ states(climate_entity) }}"
+        retain: true
+    # Publish diagnostic event for debugging
+    - service: mqtt.publish
+      data:
+        topic: nest/debug/event
+        payload: >-
+          {{ now().isoformat() }}: {{ trigger.event.event_type }} - {{ trigger.event.data }}
+        retain: false

@@ -31,4 +31,10 @@ void lcd_start_weather_fetch(void);
 // Update weather timestamp
 void lcd_update_weather_timestamp(void);
 
+// Thermostat UI updates (Nest via HA) - all temperatures in Fahrenheit
+void lcd_update_thermostat_readings(float ambient_f, float setpoint_f, const char *mode);
+void lcd_publish_thermostat_setpoint(float setpoint_f);
+// New: humidity update for thermostat display
+void lcd_update_thermostat_humidity(float humidity_percent);
+
 #endif // LCD_H

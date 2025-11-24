@@ -111,6 +111,24 @@ static lv_obj_t *vacuum_pump_switch = NULL;
 static lv_obj_t *vacuum_pump_switch_label = NULL;
 static lv_obj_t *fetch_image_button = NULL;
 
+// Thermostat (Nest) UI forward declarations/state (must be before lcd_create_ui)
+static lv_obj_t *thermo_arc = NULL;
+static lv_obj_t *thermo_label_ambient = NULL;
+static lv_obj_t *thermo_label_setpoint = NULL;
+static lv_obj_t *thermo_label_humidity = NULL;
+static lv_obj_t *thermo_btn_plus = NULL;   // Increment button
+static lv_obj_t *thermo_btn_minus = NULL;  // Decrement button
+static lv_timer_t *thermo_request_timer = NULL;  // Timer to request updates from HA
+static float thermostat_ambient_c = -1000.0f;  // Actually stores °F (variable name kept for compatibility)
+static float thermostat_setpoint_c = 72.0f;     // Actually stores °F (variable name kept for compatibility)
+static float thermostat_humidity_pct = -1.0f;
+static bool thermostat_dragging = false;
+static void thermostat_arc_event_cb(lv_event_t *e);
+static void thermostat_update_labels_locked(void);
+static void thermo_btn_plus_event_cb(lv_event_t *e);
+static void thermo_btn_minus_event_cb(lv_event_t *e);
+static void thermo_request_timer_cb(lv_timer_t *timer);
+
 // Camera button globals (private)
 static lv_obj_t *camera3_btn = NULL;
 static lv_obj_t *camera8_btn = NULL;
@@ -259,6 +277,13 @@ void lcd_create_ui(void)
     lv_obj_set_style_bg_color(tabview, COLOR_WHITE, LV_PART_ITEMS);
     lv_obj_set_style_bg_color(tabview, COLOR_WHITE, LV_PART_ITEMS | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(tabview, LV_OPA_TRANSP, 0);
+    
+    // Prevent tab buttons from changing background when other widgets are pressed
+    lv_obj_set_style_bg_opa(tabview, LV_OPA_TRANSP, LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(tabview, LV_OPA_TRANSP, LV_PART_ITEMS | LV_STATE_FOCUSED);
+    lv_obj_set_style_bg_opa(tabview, LV_OPA_TRANSP, LV_PART_ITEMS | LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_bg_opa(tabview, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(tabview, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_FOCUSED);
 
     //lv_obj_set_style_text_color(tabview, COLOR_WHITE, LV_PART_ITEMS);
     //lv_obj_set_style_text_color(tabview, COLOR_DARK_GREY, LV_PART_ITEMS | LV_STATE_DEFAULT);
@@ -284,10 +309,12 @@ void lcd_create_ui(void)
 
     // Apply base style to all tabs to disable gradients, borders, shadows
     lv_obj_add_style(weather_tab, &style_base_no_visuals, 0);
+    // Remove any default page padding so content aligns exactly with tab area
+    lv_obj_set_style_pad_all(weather_tab, 0, 0);
     lv_obj_add_style(cameras_tab, &style_base_no_visuals, 0);
     lv_obj_add_style(controller_tab, &style_base_no_visuals, 0);
     lv_obj_add_style(versaries_tab, &style_base_no_visuals, 0);
-
+    
     // Set all tabs to solid white background (opaque) to block content underneath
     lv_obj_clear_flag(weather_tab, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(weather_tab, COLOR_WHITE, 0);
@@ -387,7 +414,8 @@ void lcd_create_ui(void)
     lv_coord_t forecast_w = (WEATHER_RIGHT_WIDTH - 20) * 9 / 9.5;
     lv_coord_t forecast_h = (350 * 95) / 100;
     lv_obj_set_size(weather_forecast_list, forecast_w, forecast_h);
-    lv_obj_align(weather_forecast_list, LV_ALIGN_TOP_RIGHT,7, 50);
+    // Tuck list slightly inward and closer to the top; avoid shifting past right/top edges
+    lv_obj_align(weather_forecast_list, LV_ALIGN_TOP_RIGHT, -10, 10);
 
     lv_obj_set_style_bg_opa(weather_tab, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(weather_tab, 0, 0);
@@ -667,9 +695,12 @@ void lcd_create_ui(void)
     lv_obj_set_size(water_switch, 80, 40);
     lv_obj_align(water_switch, LV_ALIGN_TOP_LEFT, 10, 10);
     lv_obj_add_event_cb(water_switch, water_switch_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    lv_obj_set_style_bg_color(water_switch, COLOR_BLUE, LV_PART_MAIN);      // Inactive color
-    lv_obj_set_style_bg_color(water_switch, COLOR_BLUE, LV_PART_INDICATOR); // Active color
-    lv_obj_set_style_bg_color(water_switch, COLOR_BLUE, LV_PART_KNOB);      // Knob color
+    // Unchecked (OFF) state - gray background
+    lv_obj_set_style_bg_color(water_switch, lv_color_hex(0x9E9E9E), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(water_switch, lv_color_hex(0x9E9E9E), LV_PART_INDICATOR);
+    // Checked (ON) state - green indicator and knob
+    lv_obj_set_style_bg_color(water_switch, lv_color_hex(0x4CAF50), LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(water_switch, lv_color_white(), LV_PART_KNOB);
 
     water_switch_label = lv_label_create(controller_tab);
     lv_label_set_text(water_switch_label, "Water Valve");
@@ -681,9 +712,12 @@ void lcd_create_ui(void)
     lv_obj_set_size(central_vacuum_switch, 80, 40);
     lv_obj_align(central_vacuum_switch, LV_ALIGN_TOP_LEFT, 10, 70);
     lv_obj_add_event_cb(central_vacuum_switch, central_vacuum_switch_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    lv_obj_set_style_bg_color(central_vacuum_switch, COLOR_BLUE, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(central_vacuum_switch, COLOR_BLUE, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_color(central_vacuum_switch, COLOR_BLUE, LV_PART_KNOB);
+    // Unchecked (OFF) state - gray background
+    lv_obj_set_style_bg_color(central_vacuum_switch, lv_color_hex(0x9E9E9E), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(central_vacuum_switch, lv_color_hex(0x9E9E9E), LV_PART_INDICATOR);
+    // Checked (ON) state - green indicator and knob
+    lv_obj_set_style_bg_color(central_vacuum_switch, lv_color_hex(0x4CAF50), LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(central_vacuum_switch, lv_color_white(), LV_PART_KNOB);
 
     central_vacuum_switch_label = lv_label_create(controller_tab);
     lv_label_set_text(central_vacuum_switch_label, "Central Vacuum");
@@ -695,14 +729,88 @@ void lcd_create_ui(void)
     lv_obj_set_size(vacuum_pump_switch, 80, 40);
     lv_obj_align(vacuum_pump_switch, LV_ALIGN_TOP_LEFT, 10, 130);
     lv_obj_add_event_cb(vacuum_pump_switch, vacuum_pump_switch_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    lv_obj_set_style_bg_color(vacuum_pump_switch, COLOR_BLUE, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(vacuum_pump_switch, COLOR_BLUE, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_color(vacuum_pump_switch, COLOR_BLUE, LV_PART_KNOB);
+    // Unchecked (OFF) state - gray background
+    lv_obj_set_style_bg_color(vacuum_pump_switch, lv_color_hex(0x9E9E9E), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(vacuum_pump_switch, lv_color_hex(0x9E9E9E), LV_PART_INDICATOR);
+    // Checked (ON) state - green indicator and knob
+    lv_obj_set_style_bg_color(vacuum_pump_switch, lv_color_hex(0x4CAF50), LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(vacuum_pump_switch, lv_color_white(), LV_PART_KNOB);
 
     vacuum_pump_switch_label = lv_label_create(controller_tab);
     lv_label_set_text(vacuum_pump_switch_label, "Vacuum Pump");
     lv_obj_set_style_text_color(vacuum_pump_switch_label, label_color, 0);
     lv_obj_align_to(vacuum_pump_switch_label, vacuum_pump_switch, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
+
+    // Thermostat dial (Nest) - circular arc with ambient + setpoint labels (display in °F)
+    thermo_arc = lv_arc_create(controller_tab);
+    lv_obj_set_size(thermo_arc, 260, 260);
+    lv_obj_align(thermo_arc, LV_ALIGN_RIGHT_MID, -40, -10); // right side of tab
+    lv_arc_set_bg_angles(thermo_arc, 135, 45);              // 270-degree dial
+    lv_arc_set_rotation(thermo_arc, 0);
+    // Display range: 60.0°F .. 86.0°F
+    lv_arc_set_range(thermo_arc, 6000, 8600);
+    int initial_f = (int)(thermostat_setpoint_c * 100.0f);
+    lv_arc_set_value(thermo_arc, initial_f);
+    lv_obj_add_event_cb(thermo_arc, thermostat_arc_event_cb, LV_EVENT_ALL, NULL);
+
+    // Labels inside the dial
+    // Setpoint label at top - large and prominent
+    thermo_label_setpoint = lv_label_create(thermo_arc);
+    lv_obj_align(thermo_label_setpoint, LV_ALIGN_CENTER, 0, -30);  // Moved higher up
+    // Use theme's primary color (same as arc indicator) and make font 3x larger
+    lv_obj_set_style_text_color(thermo_label_setpoint, lv_theme_get_color_primary(thermo_arc), 0);
+    lv_obj_set_style_text_font(thermo_label_setpoint, &lv_font_montserrat_48, 0);  // Large font (3x the default ~16px = 48px)
+    lv_obj_set_style_bg_opa(thermo_label_setpoint, LV_OPA_TRANSP, 0);  // Transparent background
+    lv_label_set_text(thermo_label_setpoint, "--.-°F");
+
+    // Ambient temperature and humidity on same line, positioned near bottom of arc
+    thermo_label_ambient = lv_label_create(thermo_arc);
+    lv_obj_align(thermo_label_ambient, LV_ALIGN_CENTER, 0, 50);  // Move down (positive Y value)
+    lv_obj_set_style_text_color(thermo_label_ambient, COLOR_DARK_GREY, 0);
+    lv_obj_set_style_bg_opa(thermo_label_ambient, LV_OPA_TRANSP, 0);  // Transparent background
+    lv_label_set_text(thermo_label_ambient, "--.-°F, --% RH");
+
+    // Keep humidity label pointer for compatibility but make it hidden
+    thermo_label_humidity = lv_label_create(thermo_arc);
+    lv_obj_add_flag(thermo_label_humidity, LV_OBJ_FLAG_HIDDEN);  // Hide it since we combined with ambient
+    lv_obj_set_style_bg_opa(thermo_label_humidity, LV_OPA_TRANSP, 0);  // Transparent background
+    
+    // Add +/- buttons below the arc for manual temperature adjustment
+    thermo_btn_minus = lv_btn_create(controller_tab);
+    lv_obj_set_size(thermo_btn_minus, 60, 60);
+    lv_obj_align_to(thermo_btn_minus, thermo_arc, LV_ALIGN_OUT_BOTTOM_MID, -40, 10);
+    // Prevent background color changes when pressing buttons
+    lv_obj_clear_flag(thermo_btn_minus, LV_OBJ_FLAG_PRESS_LOCK);
+    lv_obj_clear_flag(thermo_btn_minus, LV_OBJ_FLAG_CLICK_FOCUSABLE);
+    lv_obj_add_event_cb(thermo_btn_minus, thermo_btn_minus_event_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *minus_label = lv_label_create(thermo_btn_minus);
+    lv_label_set_text(minus_label, "-");
+    lv_obj_set_style_text_font(minus_label, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_bg_opa(minus_label, LV_OPA_TRANSP, 0);  // Transparent label background
+    lv_obj_center(minus_label);
+    
+    thermo_btn_plus = lv_btn_create(controller_tab);
+    lv_obj_set_size(thermo_btn_plus, 60, 60);
+    lv_obj_align_to(thermo_btn_plus, thermo_arc, LV_ALIGN_OUT_BOTTOM_MID, 40, 10);
+    // Prevent background color changes when pressing buttons
+    lv_obj_clear_flag(thermo_btn_plus, LV_OBJ_FLAG_PRESS_LOCK);
+    lv_obj_clear_flag(thermo_btn_plus, LV_OBJ_FLAG_CLICK_FOCUSABLE);
+    lv_obj_add_event_cb(thermo_btn_plus, thermo_btn_plus_event_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *plus_label = lv_label_create(thermo_btn_plus);
+    lv_label_set_text(plus_label, "+");
+    lv_obj_set_style_text_font(plus_label, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_bg_opa(plus_label, LV_OPA_TRANSP, 0);  // Transparent label background
+    lv_obj_center(plus_label);
+    
+    // Initialize labels with current internal values
+    lvgl_port_lock(0);
+    thermostat_update_labels_locked();
+    lvgl_port_unlock();
+    
+    // Create timer to request thermostat state from HA every 30 seconds
+    // Request immediately, then every 30 seconds
+    thermo_request_timer = lv_timer_create(thermo_request_timer_cb, 30000, NULL);
+    lv_timer_ready(thermo_request_timer);  // Fire immediately
 
     // --- Versaries Tab (replaces Events tab) ---
     // Show marriage date and elapsed time since marriage
@@ -1141,4 +1249,170 @@ static void versaries_setup_timer_and_update(void)
     // Create timer to update every minute (60000 ms)
     // First update will happen after 60 seconds, giving time for WiFi and SNTP to sync
     versaries_update_timer = lv_timer_create(versaries_timer_cb, 60000, NULL);
+}
+
+// =====================
+// Thermostat (Nest) UI
+// =====================
+
+// Timer callback to request thermostat state from HA via MQTT
+static void thermo_request_timer_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    extern esp_err_t mqtt_request_nest_state(void);
+    mqtt_request_nest_state();
+}
+
+// Event handler for temperature decrement button (-)
+static void thermo_btn_minus_event_cb(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_CLICKED)
+    {
+        // Decrease by 1°F, respecting min limit
+        float new_temp = thermostat_setpoint_c - 1.0f;
+        if (new_temp < 60.0f) new_temp = 60.0f;  // Min 60°F
+        
+        thermostat_setpoint_c = new_temp;
+        
+        // Update UI
+        lvgl_port_lock(0);
+        thermostat_update_labels_locked();
+        if (thermo_arc)
+        {
+            int v_f = (int)(thermostat_setpoint_c * 100.0f);
+            lv_arc_set_value(thermo_arc, v_f);
+        }
+        lvgl_port_unlock();
+        
+        // Publish to MQTT
+        extern esp_err_t mqtt_publish_nest_setpoint_cool(float setpoint_f);
+        mqtt_publish_nest_setpoint_cool(thermostat_setpoint_c);
+    }
+}
+
+// Event handler for temperature increment button (+)
+static void thermo_btn_plus_event_cb(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_CLICKED)
+    {
+        // Increase by 1°F, respecting max limit
+        float new_temp = thermostat_setpoint_c + 1.0f;
+        if (new_temp > 86.0f) new_temp = 86.0f;  // Max 86°F
+        
+        thermostat_setpoint_c = new_temp;
+        
+        // Update UI
+        lvgl_port_lock(0);
+        thermostat_update_labels_locked();
+        if (thermo_arc)
+        {
+            int v_f = (int)(thermostat_setpoint_c * 100.0f);
+            lv_arc_set_value(thermo_arc, v_f);
+        }
+        lvgl_port_unlock();
+        
+        // Publish to MQTT
+        extern esp_err_t mqtt_publish_nest_setpoint_cool(float setpoint_f);
+        mqtt_publish_nest_setpoint_cool(thermostat_setpoint_c);
+    }
+}
+
+static void thermostat_update_labels_locked(void)
+{
+    char buf_ambient_combined[48];
+    char buf_setpoint[32];
+    // Values already in Fahrenheit, no conversion needed
+    float amb_f = (thermostat_ambient_c > -999) ? thermostat_ambient_c : 0.0f;
+    float sp_f = thermostat_setpoint_c;
+    
+    // Setpoint label: "72°F"
+    snprintf(buf_setpoint, sizeof(buf_setpoint), "%.0f°F", sp_f);
+    
+    // Ambient label: combine temperature and humidity on one line
+    if (thermostat_ambient_c > -999 && thermostat_humidity_pct >= 0.0f) {
+        // Both values available: "72°F, 45% RH"
+        snprintf(buf_ambient_combined, sizeof(buf_ambient_combined), "%.0f°F, %.0f%% RH", amb_f, thermostat_humidity_pct);
+    } else if (thermostat_ambient_c > -999) {
+        // Only temperature available: "72°F, --% RH"
+        snprintf(buf_ambient_combined, sizeof(buf_ambient_combined), "%.0f°F, --%% RH", amb_f);
+    } else if (thermostat_humidity_pct >= 0.0f) {
+        // Only humidity available: "--°F, 45% RH"
+        snprintf(buf_ambient_combined, sizeof(buf_ambient_combined), "--°F, %.0f%% RH", thermostat_humidity_pct);
+    } else {
+        // Neither available: keep placeholder
+        snprintf(buf_ambient_combined, sizeof(buf_ambient_combined), "--.-°F, --%% RH");
+    }
+    
+    if (thermo_label_ambient) lv_label_set_text(thermo_label_ambient, buf_ambient_combined);
+    if (thermo_label_setpoint) lv_label_set_text(thermo_label_setpoint, buf_setpoint);
+    // thermo_label_humidity is now hidden and unused
+}
+
+static void thermostat_arc_event_cb(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_VALUE_CHANGED)
+    {
+        // User is actively dragging - update UI only, don't publish yet
+        thermostat_dragging = true;
+        if (thermo_arc)
+        {
+            int v = lv_arc_get_value(thermo_arc);
+            // v is in Fahrenheit*100; store directly as Fahrenheit
+            float f = v / 100.0f;
+            thermostat_setpoint_c = f;
+            lvgl_port_lock(0);
+            thermostat_update_labels_locked();
+            lvgl_port_unlock();
+        }
+    }
+    else if (code == LV_EVENT_RELEASED)
+    {
+        thermostat_dragging = false;
+        // Only publish once when user releases the control
+        extern esp_err_t mqtt_publish_nest_setpoint_cool(float setpoint_f);
+        mqtt_publish_nest_setpoint_cool(thermostat_setpoint_c);
+        ESP_LOGI("lcd", "Thermostat arc released: publishing setpoint %.0f°F", thermostat_setpoint_c);
+    }
+}
+
+void lcd_publish_thermostat_setpoint(float setpoint_f)
+{
+    extern esp_err_t mqtt_publish_nest_setpoint_cool(float setpoint_f);
+    mqtt_publish_nest_setpoint_cool(setpoint_f);
+}
+
+void lcd_update_thermostat_readings(float ambient_f, float setpoint_f, const char *mode)
+{
+    (void)mode; // reserved for future use (color/style by mode)
+    
+    // Don't update anything from MQTT while user is actively dragging the control
+    if (thermostat_dragging) {
+        ESP_LOGI("lcd", "Ignoring MQTT update while user is dragging thermostat control");
+        return;
+    }
+    
+    if (ambient_f > -999.0f) thermostat_ambient_c = ambient_f;
+    if (setpoint_f > -999.0f) thermostat_setpoint_c = setpoint_f;
+
+    lvgl_port_lock(0);
+    thermostat_update_labels_locked();
+    if (thermo_arc)
+    {
+        int v_f = (int)(thermostat_setpoint_c * 100.0f);
+        lv_arc_set_value(thermo_arc, v_f);
+    }
+    lvgl_port_unlock();
+}
+
+void lcd_update_thermostat_humidity(float humidity_percent)
+{
+    if (humidity_percent >= 0.0f) {
+        thermostat_humidity_pct = humidity_percent;
+        lvgl_port_lock(0);
+        thermostat_update_labels_locked();
+        lvgl_port_unlock();
+    }
 }

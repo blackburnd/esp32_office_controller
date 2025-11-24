@@ -17,6 +17,10 @@ esp_err_t mqtt_publish_water_valve_state(bool state);
 esp_err_t mqtt_publish_vacuum_pump_state(bool state);
 void mqtt_publish_weather_request(void);
 
+// Nest thermostat topics (simple MQTT bridge to HA automations) - temperatures in Fahrenheit
+esp_err_t mqtt_publish_nest_setpoint_cool(float setpoint_f);
+esp_err_t mqtt_request_nest_state(void);  // Request thermostat data from HA
+
 // Shared defines for HA and weather - use Kconfig values
 #define HA_BASE_URL CONFIG_HA_BASE_URL
 #define HA_ACCESS_TOKEN CONFIG_HA_ACCESS_TOKEN

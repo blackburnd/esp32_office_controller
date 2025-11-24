@@ -1,0 +1,90 @@
+# Home Assistant MQTT + Automations debug with httpyac
+#
+# How to use:
+# 1) Create documents/httpyac.env.json from the provided sample and set baseUrl/token
+# 2) In VS Code, click "Send Request" above a block to execute it
+# 3) For WebSocket, run the WS block; you should see live state_changed events
+#
+# Notes:
+# - nest/setpoint_cool/cmd is non-retained. Have listeners open before publishing if you want to see it in HA's MQTT Listen tool.
+# - All "state" topics are expected to be retained so the TFT seeds on connect.
+
+### Test HA connectivity
+GET {{baseUrl}}/api/
+Authorization: Bearer {{token}}
+
+### Reload automations after YAML changes
+POST {{baseUrl}}/api/services/automation/reload
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### Publish TFT-style setpoint command (°C, non-retained)
+# COOL mode => HA should call climate.set_temperature with temperature (rounded to whole °F)
+# HEATCOOL => HA should call climate.set_temperature with target_temp_high
+POST {{baseUrl}}/api/services/mqtt/publish
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "topic": "nest/setpoint_cool/cmd",
+  "payload": "23.0",
+  "retain": false,
+  "qos": 1
+}
+
+### Clear stale retained command (one-time if needed)
+POST {{baseUrl}}/api/services/mqtt/publish
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "topic": "nest/setpoint_cool/cmd",
+  "payload": "",
+  "retain": true
+}
+
+### Manually seed TFT state: ambient °C (retained)
+POST {{baseUrl}}/api/services/mqtt/publish
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "topic": "nest/ambient/state",
+  "payload": "24.0",
+  "retain": true
+}
+
+### Manually seed TFT state: humidity % (retained)
+POST {{baseUrl}}/api/services/mqtt/publish
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "topic": "nest/humidity/state",
+  "payload": "64",
+  "retain": true
+}
+
+### Manually seed TFT state: setpoint °C (retained)
+POST {{baseUrl}}/api/services/mqtt/publish
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "topic": "nest/setpoint_cool/state",
+  "payload": "22.0",
+  "retain": true
+}
+
+### Inspect climate state (check hvac_mode, temperature fields)
+GET {{baseUrl}}/api/states/climate.living_room
+Authorization: Bearer {{token}}
+
+### WebSocket: watch live state_changed events
+# In the response tab, after auth, you should see stream of events. Move TFT dial or change Nest to observe updates.
+WS ws://{{host}}:{{port}}/api/websocket
+
+{"type":"auth","access_token":"{{token}}"}
+{"id": 1, "type": "subscribe_events", "event_type": "state_changed"}

@@ -11,3 +11,6 @@ remove/waveshare_rgb_lcd_port.h
 # Don't commit sdkconfig with secrets
 sdkconfig
 sdkconfig.old
+documents/nest-01K8K7RGK43SGZHM78VT1FRGFK-Living Room-da2b06da9bd33c8e90151b084173fc12.json
+documents/nest-01K8K7RGK43SGZHM78VT1FRGFK-Living Room-da2b06da9bd33c8e90151b084173fc12 (1).json
+documents/mqtt-01JXQMW2AW04ASJD3MRMXE5H56-ESP32 Office Controller-081f079079b6d3a0b7215a1aba11dbab.json

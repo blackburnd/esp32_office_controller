@@ -15,6 +15,7 @@
   "idf.flashType": "UART",
   "files.associations": {
     "weather.h": "c",
-    "esp_lcd_panel_io.h": "c"
+    "esp_lcd_panel_io.h": "c",
+    "lv_conf_internal.h": "c"
   }
 }

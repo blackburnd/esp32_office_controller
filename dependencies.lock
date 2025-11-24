@@ -1,14 +1,14 @@
 dependencies:
   espressif/cmake_utilities:
-    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    component_hash: 32d235c66d22f05ca3b5a3c2bdf273edd273b1e624b144fa8635066be50bae7b
     dependencies:
     - name: idf
       require: private
       version: '>=4.1'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
-    version: 0.5.3
+    version: 0.4.8
   espressif/esp-lib-utils:
     component_hash: 9e81fa27e3a8292bed95d91754ebcb8f27f47117328b0b646446f29fc5a847fb
     dependencies:
@@ -94,6 +94,7 @@ dependencies:
       type: local
     version: 8.4.0
 direct_dependencies:
+- espressif/cmake_utilities
 - espressif/esp32_io_expander
 - espressif/esp_jpeg
 - espressif/esp_lcd_touch
@@ -102,6 +103,6 @@ direct_dependencies:
 - espressif/esp_mmap_assets
 - idf
 - lvgl/lvgl
-manifest_hash: 6447c99be403b9c4034ac3f1a3329411a378bfe64d4f96c88d9ead76ead04cf8
+manifest_hash: 321c382b8d0017e9540f9f8ea7ba0abf9b2e760db26283a73ef28593686aa818
 target: esp32s3
 version: 2.0.0
