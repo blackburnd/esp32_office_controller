@@ -126,7 +126,7 @@ static void handle_thermostat_state(const char *topic, const char *data, int dat
     if (strstr(topic, "nest/ambient/state") != NULL)
     {
         float amb = strtof(payload, NULL);
-        ESP_LOGI(TAG, "Ambient: parsed=%.1f°F, last=%.1f°F", amb, last_ambient);
+        ESP_LOGI(TAG, "Ambient: parsed=%.1f°C, last=%.1f°C", amb, last_ambient);
         last_ambient = amb;
         changed = true;  // Always update LCD when ambient arrives from HA
     }
@@ -147,9 +147,10 @@ static void handle_thermostat_state(const char *topic, const char *data, int dat
     else if (strstr(topic, "nest/setpoint_cool/state") != NULL)
     {
         float sp = strtof(payload, NULL);
-        ESP_LOGI(TAG, "Setpoint: parsed=%.1f°F, last=%.1f°F", sp, last_setpoint);
+        ESP_LOGI(TAG, "Setpoint: parsed=%.1f°C, last=%.1f°C", sp, last_setpoint);
         // Only update if setpoint actually changed (prevent feedback loop)
-        if (fabs(sp - last_setpoint) > 0.5f)  // Ignore changes less than 0.5°F
+        // Use 0.3°C threshold (~0.5°F equivalent)
+        if (fabs(sp - last_setpoint) > 0.3f)
         {
             last_setpoint = sp;
             changed = true;
@@ -165,7 +166,7 @@ static void handle_thermostat_state(const char *topic, const char *data, int dat
 
     if (changed)
     {
-        ESP_LOGI(TAG, "Updating LCD: ambient=%.1f°F, setpoint=%.1f°F, mode='%s'", 
+        ESP_LOGI(TAG, "Updating LCD: ambient=%.1f°C, setpoint=%.1f°C, mode='%s'", 
                  last_ambient, last_setpoint, last_mode[0] ? last_mode : "NULL");
         lcd_update_thermostat_readings(last_ambient, last_setpoint, last_mode[0] ? last_mode : NULL);
     }

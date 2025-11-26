@@ -233,16 +233,7 @@
   variables:
     climate_entity: climate.living_room
   trigger:
-    # Trigger immediately when climate.set_temperature is called (from UI or ESP32)
-    - platform: event
-      event_type: call_service
-      event_data:
-        domain: climate
-        service: set_temperature
-    # Trigger on state changes (mode changes like cool/heat/off)
-    - platform: state
-      entity_id: climate.living_room
-    # Trigger on attribute changes (setpoint changes)
+    # Trigger on attribute changes (setpoint changes from Nest app or polling)
     - platform: state
       entity_id: climate.living_room
       attribute: temperature
@@ -252,12 +243,12 @@
     - platform: state
       entity_id: climate.living_room
       attribute: target_temp_low
-    - platform: state
-      entity_id: climate.living_room
-      attribute: current_temperature
-    - platform: state
-      entity_id: climate.living_room
-      attribute: current_humidity
+    # Trigger on service calls to climate.set_temperature (HA UI changes)
+    - platform: event
+      event_type: call_service
+      event_data:
+        domain: climate
+        service: set_temperature
   condition:
     # Only process service calls for climate.living_room (filter out other climate entities)
     - condition: or
@@ -278,12 +269,13 @@
     - choose:
         - conditions: []
           sequence:
-            # Publish ambient (current) temperature in °F from climate entity attribute (already in Fahrenheit)
+            # Publish ambient (current) temperature - Convert F to C
             - service: mqtt.publish
               data:
                 topic: nest/ambient/state
                 payload: >-
-                  {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+                  {% set temp_f = state_attr(climate_entity, 'current_temperature') | float(75.0) %}
+                  {{ ((temp_f - 32) * 5 / 9) | round(0) }}
                 retain: true
             # Publish humidity percent (0-100) from climate entity attribute
             - service: mqtt.publish
@@ -292,7 +284,7 @@
                 payload: >-
                   {{ state_attr(climate_entity, 'current_humidity') | float(0) }}
                 retain: true
-            # Publish current setpoint in °F - READ FROM SERVICE CALL DATA if available, otherwise from attributes
+            # Publish current setpoint - Convert F to C
             - service: mqtt.publish
               data:
                 topic: nest/setpoint_cool/state
@@ -300,16 +292,16 @@
                   {% if trigger.platform == 'event' and trigger.event.event_type == 'call_service' %}
                     {# Service call trigger - read NEW value from service call data #}
                     {% set service_data = trigger.event.data.service_data %}
-                    {% set temp_f = (service_data.get('temperature') or service_data.get('target_temp_high') or 76) | float %}
-                    {{ temp_f | round(0) }}
+                    {% set temp_f = (service_data.get('temperature') or service_data.get('target_temp_high') or 75.0) | float %}
+                    {{ ((temp_f - 32) * 5 / 9) | round(0) }}
                   {% else %}
                     {# Attribute/state trigger - read from entity attributes #}
                     {% set mode = state_attr(climate_entity, 'hvac_mode') | lower | default('off') %}
                     {% set temp_f =
                       (state_attr(climate_entity, 'temperature') if mode == 'cool' else
                        state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
-                       state_attr(climate_entity, 'temperature')) | float(76) %}
-                    {{ temp_f | round(0) }}
+                       state_attr(climate_entity, 'temperature')) | float(75.0) %}
+                    {{ ((temp_f - 32) * 5 / 9) | round(0) }}
                   {% endif %}
                 retain: true
             # Publish hvac mode (string)
@@ -318,52 +310,31 @@
                 topic: nest/mode/state
                 payload: "{{ states(climate_entity) }}"
                 retain: true
-- id: nest_consume_setpoint_cmd
-  alias: "MQTT → Nest: apply setpoint from controller"
-  description: "Apply setpoint commands from ESP32 controller (°F) to the Nest climate entity in HA. ESP32 sends Fahrenheit, HA climate entity expects Fahrenheit."
-  mode: parallel
-  max: 10
+- id: nest_poll_for_updates
+  alias: "Nest: poll for external changes"
+  description: "Reload Nest integration to force fresh API data (every 2 minutes)"
+  mode: single
   variables:
     climate_entity: climate.living_room
   trigger:
-    - platform: mqtt
-      topic: nest/setpoint_cool/cmd
-  condition: []
+    - platform: time_pattern
+      minutes: "/2"
   action:
-    - choose:
-        # COOL mode: set the single setpoint (cool) using temperature
-        - conditions: "{{ (state_attr(climate_entity, 'hvac_mode') | lower | default('')) == 'cool' or (states(climate_entity) | lower) == 'cool' }}"
-          sequence:
-            - service: climate.set_temperature
-              target:
-                entity_id: "{{ climate_entity }}"
-              data:
-                temperature: "{{ trigger.payload | float | round(0) }}"
-        # HEATCOOL mode: adjust the high (cool) setpoint only
-        - conditions: "{{ (state_attr(climate_entity, 'hvac_mode') | lower | default('')) == 'heat_cool' or (states(climate_entity) | lower) == 'heat_cool' }}"
-          sequence:
-            - service: climate.set_temperature
-              target:
-                entity_id: "{{ climate_entity }}"
-              data:
-                target_temp_high: "{{ trigger.payload | float | round(0) }}"
-      default: []
-- id: nest_respond_to_request
-  alias: "MQTT → Nest: respond to state request"
-  description: "When ESP32 requests thermostat state via nest/request_state, publish all current values. Temperatures published in Fahrenheit."
-  mode: queued
-  max: 5
-  variables:
-    climate_entity: climate.living_room
-  trigger:
-    - platform: mqtt
-      topic: nest/request_state
-  action:
+    # Reload the Nest config entry to force reconnection and fresh API fetch
+    # This is the ONLY way to get fresh data when push notifications aren't working
+    - service: homeassistant.reload_config_entry
+      target:
+        entity_id: climate.living_room
+    # Wait for reload to complete
+    - delay:
+        seconds: 3
+    # Always publish current state to MQTT after reload
     - service: mqtt.publish
       data:
         topic: nest/ambient/state
         payload: >-
-          {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+          {% set temp_f = state_attr(climate_entity, 'current_temperature') | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
         retain: true
     - service: mqtt.publish
       data:
@@ -379,8 +350,86 @@
           {% set temp_f =
             (state_attr(climate_entity, 'temperature') if mode == 'cool' else
              state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
-             state_attr(climate_entity, 'temperature')) | float(76) %}
-          {{ temp_f | round(0) }}
+             state_attr(climate_entity, 'temperature')) | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/mode/state
+        payload: "{{ states(climate_entity) }}"
+        retain: true
+    # Log polling activity for debugging
+    - service: system_log.write
+      data:
+        message: "Reloaded Nest integration: temp_f={{ state_attr('climate.living_room', 'temperature') }}°F, ambient_f={{ state_attr('climate.living_room', 'current_temperature') }}°F"
+        level: info
+
+- id: nest_consume_setpoint_cmd
+  alias: "MQTT → Nest: apply setpoint from controller"
+  description: "Apply setpoint commands from ESP32 controller to the Nest climate entity in HA. Convert C to F."
+  mode: parallel
+  max: 10
+  variables:
+    climate_entity: climate.living_room
+    temp_c: "{{ trigger.payload | float }}"
+    temp_f: "{{ (temp_c * 9 / 5) + 32 }}"
+  trigger:
+    - platform: mqtt
+      topic: nest/setpoint_cool/cmd
+  condition: []
+  action:
+    - choose:
+        # COOL mode: set the single setpoint (cool) using temperature
+        - conditions: "{{ (state_attr(climate_entity, 'hvac_mode') | lower | default('')) == 'cool' or (states(climate_entity) | lower) == 'cool' }}"
+          sequence:
+            - service: climate.set_temperature
+              target:
+                entity_id: "{{ climate_entity }}"
+              data:
+                temperature: "{{ temp_f }}"
+        # HEATCOOL mode: adjust the high (cool) setpoint only
+        - conditions: "{{ (state_attr(climate_entity, 'hvac_mode') | lower | default('')) == 'heat_cool' or (states(climate_entity) | lower) == 'heat_cool' }}"
+          sequence:
+            - service: climate.set_temperature
+              target:
+                entity_id: "{{ climate_entity }}"
+              data:
+                target_temp_high: "{{ temp_f }}"
+      default: []
+- id: nest_respond_to_request
+  alias: "MQTT → Nest: respond to state request"
+  description: "When ESP32 requests thermostat state via nest/request_state, publish all current values. Convert F to C."
+  mode: queued
+  max: 5
+  variables:
+    climate_entity: climate.living_room
+  trigger:
+    - platform: mqtt
+      topic: nest/request_state
+  action:
+    - service: mqtt.publish
+      data:
+        topic: nest/ambient/state
+        payload: >-
+          {% set temp_f = state_attr(climate_entity, 'current_temperature') | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/humidity/state
+        payload: >-
+          {{ state_attr(climate_entity, 'current_humidity') | float(0) }}
+        retain: true
+    - service: mqtt.publish
+      data:
+        topic: nest/setpoint_cool/state
+        payload: >-
+          {% set mode = state_attr(climate_entity, 'hvac_mode') | lower | default('off') %}
+          {% set temp_f =
+            (state_attr(climate_entity, 'temperature') if mode == 'cool' else
+             state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
+             state_attr(climate_entity, 'temperature')) | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
         retain: true
     - service: mqtt.publish
       data:
@@ -403,7 +452,8 @@
       data:
         topic: nest/ambient/state
         payload: >-
-          {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+          {% set temp_f = state_attr(climate_entity, 'current_temperature') | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
         retain: true
     - service: mqtt.publish
       data:
@@ -419,8 +469,8 @@
           {% set temp_f =
             (state_attr(climate_entity, 'temperature') if mode == 'cool' else
              state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
-             state_attr(climate_entity, 'temperature')) | float(76) %}
-          {{ temp_f | round(0) }}
+             state_attr(climate_entity, 'temperature')) | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
         retain: true
     - service: mqtt.publish
       data:
@@ -442,7 +492,8 @@
       data:
         topic: nest/ambient/state
         payload: >-
-          {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+          {% set temp_f = state_attr(climate_entity, 'current_temperature') | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
         retain: true
     - service: mqtt.publish
       data:
@@ -458,8 +509,8 @@
           {% set temp_f =
             (state_attr(climate_entity, 'temperature') if mode == 'cool' else
              state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
-             state_attr(climate_entity, 'temperature')) | float(76) %}
-          {{ temp_f | round(0) }}
+             state_attr(climate_entity, 'temperature')) | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
         retain: true
     - service: mqtt.publish
       data:
@@ -505,6 +556,7 @@
 - id: nest_device_event_listener
   alias: "Nest: device event listener"
   description: "Capture Nest device events from Google Cloud and immediately publish to MQTT"
+  initial_state: true  # ENABLED - fixed conversion logic to match nest_publish_states
   mode: queued
   max: 10
   variables:
@@ -529,12 +581,13 @@
         entity_id: climate.living_room
     - delay:
         milliseconds: 200
-    # Publish all values to MQTT
+    # Publish all values to MQTT - HA stores in Fahrenheit, convert F to C for ESP32
     - service: mqtt.publish
       data:
         topic: nest/ambient/state
         payload: >-
-          {{ state_attr(climate_entity, 'current_temperature') | float(76) | round(0) }}
+          {% set temp_f = state_attr(climate_entity, 'current_temperature') | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
         retain: true
     - service: mqtt.publish
       data:
@@ -550,8 +603,8 @@
           {% set temp_f =
             (state_attr(climate_entity, 'temperature') if mode == 'cool' else
              state_attr(climate_entity, 'target_temp_high') if mode == 'heat_cool' else
-             state_attr(climate_entity, 'temperature')) | float(76) %}
-          {{ temp_f | round(0) }}
+             state_attr(climate_entity, 'temperature')) | float(75.0) %}
+          {{ ((temp_f - 32) * 5 / 9) | round(0) }}
         retain: true
     - service: mqtt.publish
       data:
