@@ -438,16 +438,17 @@ static void weather_fetch_task_wrapper(void *pvParameters) {
 
 // Timer callback for periodic weather updates (lightweight - just spawns task)
 static void weather_timer_callback(TimerHandle_t xTimer) {
-    ESP_LOGI(TAG, "Weather timer triggered, spawning fetch task");
+    ESP_LOGI(TAG, "Weather timer triggered (heap: %" PRIu32 "), spawning fetch task", esp_get_free_heap_size());
 
     // Avoid overlapping fetch tasks if a previous one is still running
     if (s_weather_task != NULL) {
         eTaskState st = eTaskGetState(s_weather_task);
         if (st != eDeleted) {
-            ESP_LOGW(TAG, "Previous weather task still running (%d), skipping spawn", (int)st);
+            ESP_LOGW(TAG, "Previous weather task still running (state=%d), skipping spawn", (int)st);
             return;
         }
         // If deleted, clear the handle so we can create another
+        ESP_LOGI(TAG, "Previous weather task completed, clearing handle");
         s_weather_task = NULL;
     }
 
@@ -561,7 +562,7 @@ bool set_jpg_or_error(lv_obj_t *img_obj, const uint8_t *start, const uint8_t *en
 
     // Decode JPEG to RGB565
     esp_jpeg_image_cfg_t jpeg_cfg = {
-        .indata = start,
+        .indata = (uint8_t *)(uintptr_t)start,
         .indata_size = size,
         .outbuf = decoded_buffer,
         .outbuf_size = decoded_size,

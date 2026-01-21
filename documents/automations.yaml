@@ -618,3 +618,130 @@
         payload: >-
           {{ now().isoformat() }}: {{ trigger.event.event_type }} - {{ trigger.event.data }}
         retain: false
+- id: camera_motion_north_driveway
+  alias: "Camera Motion: North Driveway → MQTT"
+  description: "Publish North Driveway (channel 0) motion to MQTT for ESP32 panel"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.north_motion
+      to: 'on'
+  action:
+    - service: mqtt.publish
+      data:
+        topic: "esp32_office_controller/camera/0/motion"
+        payload: "ON"
+        retain: false
+        qos: 1
+
+- id: camera_motion_front_door
+  alias: "Camera Motion: Front Door → MQTT"
+  description: "Publish Front Door (channel 1) motion to MQTT for ESP32 panel"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.front_door_motion
+      to: 'on'
+  action:
+    - service: mqtt.publish
+      data:
+        topic: "esp32_office_controller/camera/1/motion"
+        payload: "ON"
+        retain: false
+        qos: 1
+
+- id: camera_motion_south_driveway
+  alias: "Camera Motion: South Driveway → MQTT"
+  description: "Publish South Driveway (channel 2) motion to MQTT for ESP32 panel"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.south_west_motion
+      to: 'on'
+  action:
+    - service: mqtt.publish
+      data:
+        topic: "esp32_office_controller/camera/2/motion"
+        payload: "ON"
+        retain: false
+        qos: 1
+
+- id: camera_motion_east_driveway
+  alias: "Camera Motion: East Driveway → MQTT"
+  description: "Publish East Driveway (channel 3) motion to MQTT for ESP32 panel"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.east_driveway_motion
+      to: 'on'
+  action:
+    - service: mqtt.publish
+      data:
+        topic: "esp32_office_controller/camera/3/motion"
+        payload: "ON"
+        retain: false
+        qos: 1
+
+- id: camera_motion_north_canal
+  alias: "Camera Motion: North Canal → MQTT"
+  description: "Publish North Canal (channel 4) motion to MQTT for ESP32 panel"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.north_east_motion_2
+      to: 'on'
+  action:
+    - service: mqtt.publish
+      data:
+        topic: "esp32_office_controller/camera/4/motion"
+        payload: "ON"
+        retain: false
+        qos: 1
+
+- id: camera_motion_west_canal
+  alias: "Camera Motion: West Canal → MQTT"
+  description: "Publish West Canal (channel 5) motion to MQTT for ESP32 panel"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.east_motion
+      to: 'on'
+  action:
+    - service: mqtt.publish
+      data:
+        topic: "esp32_office_controller/camera/5/motion"
+        payload: "ON"
+        retain: false
+        qos: 1
+
+- id: camera_motion_tiki
+  alias: "Camera Motion: Tiki → MQTT"
+  description: "Publish Tiki (channel 6) motion to MQTT for ESP32 panel"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.camera1_motion_2
+      to: 'on'
+  action:
+    - service: mqtt.publish
+      data:
+        topic: "esp32_office_controller/camera/6/motion"
+        payload: "ON"
+        retain: false
+        qos: 1
+
+- id: camera_motion_south_yard
+  alias: "Camera Motion: South Yard → MQTT"
+  description: "Publish South Yard (channel 7) motion to MQTT for ESP32 panel"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.camera1_motion
+      to: 'on'
+  action:
+    - service: mqtt.publish
+      data:
+        topic: "esp32_office_controller/camera/7/motion"
+        payload: "ON"
+        retain: false
+        qos: 1

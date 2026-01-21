@@ -1,6 +1,8 @@
 {
+  "cmake.configureOnOpen": false,
+  "cmake.sourceDirectory": "${workspaceFolder}/donotbuild",
   "idf.openOcdConfigs": [
-    "board/esp32s3-builtin.cfg"
+    "board/esp32s3-bridge.cfg"
   ],
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32s3"
@@ -11,11 +13,15 @@
     "--query-driver=/Users/danielblackburn/esp/esp-idf/tools/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc",
     "--compile-commands-dir=/Users/danielblackburn/Documents/HomeAssistantControllers/esp32_office_controller/build"
   ],
-  "idf.port": "/dev/tty.wchusbserial59720521801",
+  "idf.port": "/dev/tty.usbmodem101",
   "idf.flashType": "UART",
+  "idf.flashBaudRate": "9600",
+  "idf.adapterTargetName": "esp32s3",
+  "idf.flashExtraArgs": "--no-stub",
   "files.associations": {
     "weather.h": "c",
     "esp_lcd_panel_io.h": "c",
     "lv_conf_internal.h": "c"
-  }
+  },
+  "idf.pythonInstallPath": "/usr/bin/python3"
 }

@@ -37,4 +37,7 @@ void lcd_publish_thermostat_setpoint(float setpoint_f);
 // New: humidity update for thermostat display
 void lcd_update_thermostat_humidity(float humidity_percent);
 
+// Add to lcd.h after existing function declarations
+void lcd_set_camera_button_motion(int camera_channel, bool motion_detected);
+
 #endif // LCD_H

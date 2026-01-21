@@ -11,7 +11,12 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_task_wdt.h"
 #include <time.h>
+
+// Watchdog and health monitoring
+static esp_timer_handle_t health_monitor_timer = NULL;
+#define HEALTH_CHECK_INTERVAL_MS 10000  // Check every 10 seconds
 
 // Global base style to override theme defaults
 static lv_style_t style_base_no_visuals;
@@ -211,6 +216,136 @@ static void camera_south_yard_btn_event_cb(lv_event_t *e)
     current_camera_index = 5;
     extern void camera_client_fetch_image(int camera_index);
     camera_client_fetch_image(5);
+}
+
+// Color definitions for motion detection
+#define COLOR_MOTION_DETECTED lv_color_hex(0xFF4444)  // Bright red
+#define COLOR_MOTION_CLEARED COLOR_BLUE  // Return to normal blue
+#define MOTION_AUTO_CLEAR_MS 3000  // Auto-clear motion after 3 seconds
+
+// Motion timer handles for each camera (8 cameras)
+static esp_timer_handle_t motion_timers[8] = {NULL};
+
+// Helper function to get camera button by channel index
+static lv_obj_t* get_camera_button_by_channel(int channel) {
+    switch(channel) {
+        case 0: return fetch_image_button;      // North Driveway
+        case 1: return camera_front_door_btn;   // Front Door
+        case 2: return camera_north_canal_btn;  // South Driveway (labeled as North Canal in UI)
+        case 3: return camera3_btn;             // East Driveway (camera3_btn)
+        case 4: return camera_south_yard_btn;   // North Canal (labeled as South Yard in UI)
+        case 5: return camera_west_canal_btn;   // West Canal
+        case 6: return camera_tiki_btn;         // Tiki
+        case 7: return camera8_btn;             // South Yard (camera8_btn)
+        default: return NULL;
+    }
+}
+
+// Timer callback to auto-clear motion state
+static void motion_timer_callback(void *arg) {
+    int camera_channel = (int)(intptr_t)arg;
+    static const char *TAG = "LCD";
+    
+    lv_obj_t *btn = get_camera_button_by_channel(camera_channel);
+    if (!btn) {
+        ESP_LOGW(TAG, "Camera %d: button not found in timer callback", camera_channel);
+        return;
+    }
+
+    // Lock LVGL and clear motion state with extended timeout and retry
+    int retry_count = 0;
+    while (retry_count < 3) {
+        if (lvgl_port_lock(200)) {  // Increased to 200ms timeout
+            lv_obj_set_style_bg_color(btn, lv_color_lighten(COLOR_BLUE, LV_OPA_20), LV_STATE_DEFAULT);
+            lv_obj_set_style_bg_grad_color(btn, lv_color_darken(COLOR_BLUE, LV_OPA_20), LV_STATE_DEFAULT);
+            lv_obj_invalidate(btn);
+            lvgl_port_unlock();
+            ESP_LOGI(TAG, "Camera %d motion AUTO-CLEARED after 3s - button BLUE", camera_channel);
+            return;
+        }
+        retry_count++;
+        ESP_LOGW(TAG, "Camera %d motion auto-clear: LVGL lock attempt %d/3 failed", camera_channel, retry_count);
+        vTaskDelay(pdMS_TO_TICKS(50));  // Small delay before retry
+    }
+    ESP_LOGE(TAG, "Camera %d motion auto-clear: FAILED after 3 retries - UI may be frozen", camera_channel);
+}
+
+// Public function to set camera button motion state (called from MQTT handler)
+void lcd_set_camera_button_motion(int camera_channel, bool motion_detected) {
+    static const char *TAG = "LCD";
+    
+    if (camera_channel < 0 || camera_channel >= 8) {
+        ESP_LOGW(TAG, "Invalid camera channel: %d", camera_channel);
+        return;
+    }
+    
+    lv_obj_t *btn = get_camera_button_by_channel(camera_channel);
+    if (!btn) {
+        ESP_LOGW(TAG, "Camera %d: button object is NULL", camera_channel);
+        return;
+    }
+
+    // Lock LVGL before modifying UI with retry logic
+    int retry_count = 0;
+    bool lock_acquired = false;
+    while (retry_count < 2 && !lock_acquired) {
+        if (lvgl_port_lock(200)) {  // 200ms timeout
+            lock_acquired = true;
+            if (motion_detected) {
+                // Highlight button with motion color
+                lv_obj_set_style_bg_color(btn, COLOR_MOTION_DETECTED, LV_STATE_DEFAULT);
+                lv_obj_set_style_bg_grad_color(btn, lv_color_darken(COLOR_MOTION_DETECTED, LV_OPA_30), LV_STATE_DEFAULT);
+                ESP_LOGI(TAG, "Camera %d motion DETECTED - button highlighted RED", camera_channel);
+                
+                // Stop existing timer if running to prevent accumulation
+                if (motion_timers[camera_channel] != NULL) {
+                    esp_err_t err = esp_timer_stop(motion_timers[camera_channel]);
+                    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+                        ESP_LOGW(TAG, "Camera %d: Failed to stop timer: %s", camera_channel, esp_err_to_name(err));
+                    }
+                } else {
+                    // Create timer on first use
+                    esp_timer_create_args_t timer_args = {
+                        .callback = motion_timer_callback,
+                        .arg = (void *)(intptr_t)camera_channel,
+                        .name = "motion_timer",
+                        .skip_unhandled_events = true  // Prevent timer queue accumulation
+                    };
+                    esp_err_t err = esp_timer_create(&timer_args, &motion_timers[camera_channel]);
+                    if (err != ESP_OK) {
+                        ESP_LOGE(TAG, "Camera %d: Failed to create timer: %s", camera_channel, esp_err_to_name(err));
+                        lvgl_port_unlock();
+                        return;
+                    }
+                }
+                
+                // Start 3-second auto-clear timer
+                esp_err_t err = esp_timer_start_once(motion_timers[camera_channel], MOTION_AUTO_CLEAR_MS * 1000);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Camera %d: Failed to start timer: %s", camera_channel, esp_err_to_name(err));
+                }
+            } else {
+                // Manual clear from MQTT "OFF" - stop timer and reset color
+                if (motion_timers[camera_channel] != NULL) {
+                    esp_timer_stop(motion_timers[camera_channel]);
+                }
+                lv_obj_set_style_bg_color(btn, lv_color_lighten(COLOR_BLUE, LV_OPA_20), LV_STATE_DEFAULT);
+                lv_obj_set_style_bg_grad_color(btn, lv_color_darken(COLOR_BLUE, LV_OPA_20), LV_STATE_DEFAULT);
+                ESP_LOGI(TAG, "Camera %d motion CLEARED - button normal", camera_channel);
+            }
+            lv_obj_invalidate(btn);
+            lvgl_port_unlock();
+        } else {
+            retry_count++;
+            ESP_LOGW(TAG, "Camera %d motion: LVGL lock attempt %d/2 failed", camera_channel, retry_count);
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+    }
+    
+    if (!lock_acquired) {
+        ESP_LOGE(TAG, "Camera %d motion: FAILED to lock LVGL after retries (heap: %" PRIu32 ")", 
+                 camera_channel, esp_get_free_heap_size());
+    }
 }
 
 void lcd_create_ui(void)
@@ -525,33 +660,14 @@ void lcd_create_ui(void)
     lv_style_set_outline_color(&camera_btn_style_pressed, COLOR_BLUE);                              // Fixed blue (no palette)
     lv_style_set_text_color(&camera_btn_style_pressed, COLOR_WHITE);
 
-    // Add a focused style identical to default (raised look)
-    static lv_style_t camera_btn_style_focused;
-    lv_style_init(&camera_btn_style_focused);
-    lv_style_set_radius(&camera_btn_style_focused, 3);
-    lv_style_set_bg_opa(&camera_btn_style_focused, LV_OPA_TRANSP);
-    lv_style_set_bg_color(&camera_btn_style_focused, lv_color_lighten(COLOR_BLUE, LV_OPA_20));
-    lv_style_set_bg_grad_color(&camera_btn_style_focused, lv_color_darken(COLOR_BLUE, LV_OPA_20));
-    lv_style_set_bg_grad_dir(&camera_btn_style_focused, LV_GRAD_DIR_VER);
-    lv_style_set_border_width(&camera_btn_style_focused, 2); // Border width: 2 pixels
-    lv_style_set_border_color(&camera_btn_style_focused, COLOR_GREY);
-    lv_style_set_shadow_width(&camera_btn_style_focused, 5); // Shadow width: 5 pixels for 3D depth
-    lv_style_set_shadow_color(&camera_btn_style_focused, lv_color_darken(COLOR_GREY, LV_OPA_50));
-    lv_style_set_shadow_ofs_x(&camera_btn_style_focused, 2);
-    lv_style_set_shadow_ofs_y(&camera_btn_style_focused, 2);
-    lv_style_set_outline_width(&camera_btn_style_focused, 1); // Outline width: 1 pixel
-    lv_style_set_outline_color(&camera_btn_style_focused, COLOR_BLUE);
-    lv_style_set_text_color(&camera_btn_style_focused, COLOR_WHITE);
-
     // North Driveway button (Row 0)
     fetch_image_button = lv_btn_create(cameras_tab);
     lv_obj_set_size(fetch_image_button, 225, 75); // Updated size
     lv_obj_add_event_cb(fetch_image_button, fetch_north_driveway, LV_EVENT_CLICKED, NULL);
     lv_obj_clear_flag(fetch_image_button, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-    lv_obj_remove_style_all(fetch_image_button);                                       // Remove theme styles (as in example)
-    lv_obj_add_style(fetch_image_button, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
-    lv_obj_add_style(fetch_image_button, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
-    lv_obj_add_style(fetch_image_button, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
+    lv_obj_remove_style_all(fetch_image_button);                                       // Remove theme styles
+    lv_obj_add_style(fetch_image_button, &camera_btn_style, LV_STATE_DEFAULT);
+    lv_obj_add_style(fetch_image_button, &camera_btn_style_pressed, LV_STATE_PRESSED);
     lv_obj_t *image_btn_label = lv_label_create(fetch_image_button);
     lv_label_set_text(image_btn_label, "North Driveway");
     lv_obj_remove_style_all(image_btn_label); // Remove all default styles
@@ -570,7 +686,6 @@ void lcd_create_ui(void)
     lv_obj_remove_style_all(camera3_btn);                                       // Remove theme styles (as in example)
     lv_obj_add_style(camera3_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
     lv_obj_add_style(camera3_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
-    lv_obj_add_style(camera3_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *cam3_label = lv_label_create(camera3_btn);
     lv_label_set_text(cam3_label, "East Driveway");
     lv_obj_remove_style_all(cam3_label); // Remove all default styles
@@ -589,7 +704,6 @@ void lcd_create_ui(void)
     lv_obj_remove_style_all(camera_north_canal_btn);                                       // Remove theme styles (as in example)
     lv_obj_add_style(camera_north_canal_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
     lv_obj_add_style(camera_north_canal_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_north_canal_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *north_canal_label = lv_label_create(camera_north_canal_btn);
     lv_label_set_text(north_canal_label, "South Driveway");
     lv_obj_remove_style_all(north_canal_label); // Remove all default styles
@@ -609,7 +723,6 @@ void lcd_create_ui(void)
     lv_obj_remove_style_all(camera_front_door_btn);                                       // Remove theme styles (as in example)
     lv_obj_add_style(camera_front_door_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
     lv_obj_add_style(camera_front_door_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_front_door_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *front_door_label = lv_label_create(camera_front_door_btn);
     lv_label_set_text(front_door_label, " Front Door ");
     lv_obj_remove_style_all(front_door_label); // Remove all default styles
@@ -628,7 +741,6 @@ void lcd_create_ui(void)
     lv_obj_remove_style_all(camera_west_canal_btn);                                       // Remove theme styles (as in example)
     lv_obj_add_style(camera_west_canal_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
     lv_obj_add_style(camera_west_canal_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_west_canal_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *west_canal_label = lv_label_create(camera_west_canal_btn);
     lv_label_set_text(west_canal_label, " West Canal ");
     lv_obj_remove_style_all(west_canal_label); // Remove all default styles
@@ -647,7 +759,6 @@ void lcd_create_ui(void)
     lv_obj_remove_style_all(camera_tiki_btn);                                       // Remove theme styles (as in example)
     lv_obj_add_style(camera_tiki_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
     lv_obj_add_style(camera_tiki_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_tiki_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *tiki_label = lv_label_create(camera_tiki_btn);
     lv_label_set_text(tiki_label, "   Tiki    ");
     lv_obj_remove_style_all(tiki_label); // Remove all default styles
@@ -666,7 +777,6 @@ void lcd_create_ui(void)
     lv_obj_remove_style_all(camera_south_yard_btn);                                       // Remove theme styles (as in example)
     lv_obj_add_style(camera_south_yard_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
     lv_obj_add_style(camera_south_yard_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
-    lv_obj_add_style(camera_south_yard_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *south_yard_label = lv_label_create(camera_south_yard_btn);
     lv_label_set_text(south_yard_label, " North Canal ");
     lv_obj_align(south_yard_label, LV_ALIGN_CENTER, 0, 0);
@@ -686,7 +796,6 @@ void lcd_create_ui(void)
     lv_obj_remove_style_all(camera8_btn);
     lv_obj_add_style(camera8_btn, &camera_btn_style, LV_STATE_DEFAULT);         // Removed LV_PART_MAIN
     lv_obj_add_style(camera8_btn, &camera_btn_style_pressed, LV_STATE_PRESSED); // Removed LV_PART_MAIN
-    lv_obj_add_style(camera8_btn, &camera_btn_style_focused, LV_STATE_FOCUSED); // Added focused style
     lv_obj_t *cam8_label = lv_label_create(camera8_btn);
     lv_label_set_text(cam8_label, " South Yard ");
     lv_obj_remove_style_all(cam8_label); // Remove all default styles
@@ -1070,6 +1179,31 @@ static void auto_refresh_timer_cb(lv_timer_t *timer)
         camera_client_fetch_image(current_camera_index);
     }
 }
+
+// Health monitoring callback to detect and log system issues
+static void health_monitor_callback(void *arg) {
+    static const char *TAG = "HEALTH";
+    static uint32_t last_min_heap = 0;
+    
+    uint32_t free_heap = esp_get_free_heap_size();
+    uint32_t min_heap = esp_get_minimum_free_heap_size();
+    
+    // Log heap status every check
+    ESP_LOGI(TAG, "Heap: free=%" PRIu32 ", min=%" PRIu32 ", LVGL_running=%d, MQTT=%d", 
+             free_heap, min_heap, 1, mqtt_is_connected());
+    
+    // Warn if heap is getting low
+    if (free_heap < 100000) {
+        ESP_LOGW(TAG, "Low heap warning: %" PRIu32 " bytes remaining", free_heap);
+    }
+    
+    // Detect if minimum heap is decreasing (potential leak)
+    if (last_min_heap > 0 && min_heap < last_min_heap - 10000) {
+        ESP_LOGW(TAG, "Heap leak detected: min heap dropped from %" PRIu32 " to %" PRIu32 "", last_min_heap, min_heap);
+    }
+    last_min_heap = min_heap;
+}
+
 void lcd_init(void)
 {
     // LCD and LVGL init handled in main.c
@@ -1080,6 +1214,21 @@ void lcd_init(void)
     {
         lv_img_cache_set_size(1);
         s_img_cache_set = true;
+    }
+    
+    // Start health monitoring timer
+    esp_timer_create_args_t health_timer_args = {
+        .callback = health_monitor_callback,
+        .arg = NULL,
+        .name = "health_monitor",
+        .skip_unhandled_events = true
+    };
+    
+    if (esp_timer_create(&health_timer_args, &health_monitor_timer) == ESP_OK) {
+        esp_timer_start_periodic(health_monitor_timer, HEALTH_CHECK_INTERVAL_MS * 1000);
+        ESP_LOGI("LCD", "Health monitor started (10s interval)");
+    } else {
+        ESP_LOGE("LCD", "Failed to create health monitor timer");
     }
 }
 

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <inttypes.h>  // For PRIu32
 #include "esp_log.h"
 #include "mqtt_client.h"
 #include "esp_http_client.h"
@@ -13,9 +14,11 @@
 #include "wifi.h"
 #include <math.h>
 #include <strings.h>
+#include "esp_mac.h"  // For getting MAC address
 
-// Forward declaration for the text area MQTT handler
-static void mqtt_textarea_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
+// Forward declarations
+// static void mqtt_textarea_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
+static void handle_camera_motion(const char *topic, const char *data, int data_len);
 
 // External functions from lcd.c
 extern void lcd_update_weather_forecast(const char *forecast_text);
@@ -27,10 +30,11 @@ extern void lcd_update_thermostat_readings(float ambient_c, float setpoint_c, co
 static const char *TAG = "mqtt";
 static esp_mqtt_client_handle_t mqtt_client = NULL;
 static bool mqtt_connected = false;
+static char mqtt_client_id[32] = {0};  // Unique client ID based on MAC
 
 // Availability/diagnostics topics for easier debugging and HA device status
 static const char *AVAIL_TOPIC = "esp32_office_controller/availability"; // retained: "online"/"offline"
-static const char *DIAG_PREFIX = "esp32_office_controller/diag";         // retained last values
+// static const char *DIAG_PREFIX = "esp32_office_controller/diag";         // retained last values
 
 // Callback for relay state changes
 static relay_state_change_callback_t relay_callback = NULL;
@@ -530,6 +534,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         esp_mqtt_client_subscribe(mqtt_client, "nest/mode/state", 1);
         ESP_LOGI(TAG, "Subscribed to nest/ambient/state, nest/humidity/state, nest/setpoint_cool/state, nest/mode/state");
         
+        // Subscribe to camera motion topics (channels 0-7)
+        for (int i = 0; i < 8; i++) {
+            char motion_topic[64];
+            snprintf(motion_topic, sizeof(motion_topic), "esp32_office_controller/camera/%d/motion", i);
+            int msg_id = esp_mqtt_client_subscribe(mqtt_client, motion_topic, 1);
+            ESP_LOGI(TAG, "Subscribed to camera %d motion, msg_id=%d", i, msg_id);
+        }
+        
         mqtt_publish_discovery_config();
 
         // Weather fetch is handled by weather_init_timer() in lcd.c
@@ -548,8 +560,20 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
     case MQTT_EVENT_DISCONNECTED:
         mqtt_connected = false;
-        ESP_LOGI(TAG, "MQTT disconnected");
+        ESP_LOGW(TAG, "MQTT disconnected (uptime: %" PRIu32 "s) - will auto-reconnect", (uint32_t)(esp_timer_get_time() / 1000000));
         lcd_update_ha_status(false, NULL);
+        break;
+    case MQTT_EVENT_ERROR:
+        if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+            ESP_LOGE(TAG, "MQTT TCP transport error: errno=%d, connect_return_code=%d", 
+                    event->error_handle->esp_transport_sock_errno, event->error_handle->connect_return_code);
+        } else if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+            ESP_LOGE(TAG, "MQTT connection refused, return_code=%d", event->error_handle->connect_return_code);
+        }
+        if (event->error_handle->connect_return_code != 0) {
+            ESP_LOGW(TAG, "MQTT broker rejection: code=%d (1=protocol, 2=id_rejected, 3=unavailable, 4=bad_auth, 5=not_authorized)", 
+                    event->error_handle->connect_return_code);
+        }
         break;
     case MQTT_EVENT_DATA:
         // Handle command topics and thermostat state topics
@@ -563,8 +587,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             memcpy(topic, event->topic, topic_len);
             topic[topic_len] = '\0';
             
+            // Check if this is a camera motion topic
+            if (strstr(topic, "esp32_office_controller/camera/") && strstr(topic, "/motion"))
+            {
+                handle_camera_motion(topic, event->data, event->data_len);
+            }
             // Check if this is a nest/ topic
-            if (strstr(topic, "nest/") != NULL)
+            else if (strstr(topic, "nest/") != NULL)
             {
                 handle_thermostat_state(topic, event->data, event->data_len);
             }
@@ -600,6 +629,15 @@ static void relay_state_change_handler(int relay_index, bool state)
 esp_err_t mqtt_init(void)
 {
     ESP_LOGI(TAG, "Initializing MQTT client...");
+    
+    // Generate unique client ID based on MAC address to prevent duplicate connection issues
+    if (mqtt_client_id[0] == '\0') {
+        uint8_t mac[6] = {0};
+        esp_read_mac(mac, ESP_MAC_WIFI_STA);
+        snprintf(mqtt_client_id, sizeof(mqtt_client_id), "esp32_office_%02X%02X%02X", 
+                mac[3], mac[4], mac[5]);
+        ESP_LOGI(TAG, "Generated unique client ID: %s", mqtt_client_id);
+    }
 
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker = {
@@ -613,15 +651,17 @@ esp_err_t mqtt_init(void)
             .authentication = {
                 .password = "mqtt",
             },
-            .client_id = "esp32_office_controller",
+            .client_id = mqtt_client_id,
         },
         .network = {
-            .timeout_ms = 10000,
+            .timeout_ms = 15000,  // Increased timeout for stability
             .refresh_connection_after_ms = 0,  // Disable auto-refresh
             .disable_auto_reconnect = false,
+            .reconnect_timeout_ms = 10000,  // Wait 10s before reconnect attempts
         },
         .session = {
-            .keepalive = 120,  // Increased to 120 seconds to reduce disconnects
+            .keepalive = 60,  // Reduced to 60s for faster disconnect detection
+            .disable_keepalive = false,
             .disable_clean_session = false,
             .last_will = {
                 .topic = NULL, // set below to avoid non-const aggregate init ordering issues
@@ -668,7 +708,7 @@ esp_err_t mqtt_init(void)
     return ESP_OK;
 }
 
-static void mqtt_textarea_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+/* static void mqtt_textarea_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
     esp_mqtt_event_handle_t event = event_data;
     switch ((esp_mqtt_event_id_t)event_id)
     {
@@ -716,5 +756,26 @@ static void mqtt_textarea_event_handler(void *handler_args, esp_event_base_t bas
         // Only log truly unexpected events
         ESP_LOGW(TAG, "Textarea handler: Unexpected MQTT event ID=%ld", (long)event_id);
         break;
+    }
+} */
+
+// Handle camera motion events from HA
+static void handle_camera_motion(const char *topic, const char *data, int data_len) {
+    char payload[8] = {0};
+    int n = data_len < (int)sizeof(payload) - 1 ? data_len : (int)sizeof(payload) - 1;
+    memcpy(payload, data, n);
+    payload[n] = '\0';
+
+    // Extract camera channel from topic: "esp32_office_controller/camera/X/motion"
+    int camera_channel = -1;
+    if (sscanf(topic, "esp32_office_controller/camera/%d/motion", &camera_channel) == 1) {
+        bool motion_detected = (strcasecmp(payload, "ON") == 0);
+        ESP_LOGI(TAG, "Camera %d motion: %s", camera_channel, motion_detected ? "DETECTED" : "cleared");
+        
+        // Update UI button highlighting
+        extern void lcd_set_camera_button_motion(int camera_channel, bool motion_detected);
+        lcd_set_camera_button_motion(camera_channel, motion_detected);
+    } else {
+        ESP_LOGW(TAG, "Failed to parse camera channel from topic: %s", topic);
     }
 }
